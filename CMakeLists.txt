@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required(VERSION 3.20)
 
-project(LightWeightGameFramework LANGUAGES CXX)
+project(LightWeightGameFramework LANGUAGES C CXX)
 
 include(FetchContent)
 
@@ -17,10 +17,24 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(glfw)
 
+add_library(glad STATIC
+    third_party/glad/src/gl.c
+)
+
+target_include_directories(glad
+    PUBLIC
+        third_party/glad/include
+)
+
 add_executable(LightWeightGameFramework
     src/main.cpp
 )
 
 target_compile_features(LightWeightGameFramework PRIVATE cxx_std_20)
 
-target_link_libraries(LightWeightGameFramework PRIVATE glfw)
+target_link_libraries(
+    LightWeightGameFramework
+    PRIVATE 
+        glfw
+        glad
+)
