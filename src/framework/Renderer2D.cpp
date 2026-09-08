@@ -1,4 +1,5 @@
 #include "Renderer2D.h"
+#include "Texture2D.h"
 
 #include <iostream>
 #include <glad/gl.h>
@@ -100,10 +101,11 @@ bool Renderer2D::Initialize(int screenWidth, int screenHeight)
 
     float vertices[] =
     {
-        0.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 0.0f,
-        1.0f, 1.0f, 0.0f,
-        0.0f, 1.0f, 0.0f
+        // Position             // UV
+        0.0f, 0.0f, 0.0f,      0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f,      1.0f, 0.0f,
+        1.0f, 1.0f, 0.0f,      1.0f, 1.0f,
+        0.0f, 1.0f, 0.0f,      0.0f, 1.0f
     };
 
     unsigned int indices[] =
@@ -141,30 +143,54 @@ bool Renderer2D::Initialize(int screenWidth, int screenHeight)
         3,
         GL_FLOAT,
         GL_FALSE,
-        3 * sizeof(float),
+        5 * sizeof(float),
         nullptr
     );
 
     glEnableVertexAttribArray(0);
 
+    glVertexAttribPointer(
+        1,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        5 * sizeof(float),
+        reinterpret_cast<void*>(3 * sizeof(float))
+    );
+
+    glEnableVertexAttribArray(1);
+
     const char* vertexShaderSource =
         "#version 330 core\n"
         "layout (location = 0) in vec3 position;\n"
+        "layout (location = 1) in vec2 texCoord;\n"
         "uniform vec2 uPosition;\n"
         "uniform vec2 uSize;\n"
+        "out vec2 vTexCoord;\n"
         "void main()\n"
         "{\n"
         "    vec2 transformedPosition = position.xy * uSize + uPosition;\n"
         "    gl_Position = vec4(transformedPosition, position.z, 1.0);\n"
+        "    vTexCoord = texCoord;\n"
         "}\n";
 
     const char* fragmentShaderSource =
         "#version 330 core\n"
+        "in vec2 vTexCoord;\n"
         "out vec4 fragmentColor;\n"
         "uniform vec4 uColor;\n"
+        "uniform sampler2D uTexture;\n"
+        "uniform int uUseTexture;\n"
         "void main()\n"
         "{\n"
-        "    fragmentColor = uColor;\n"
+        "    if (uUseTexture == 1)\n"
+        "    {\n"
+        "        fragmentColor = texture(uTexture, vTexCoord) * uColor;\n"
+        "    }\n"
+        "    else\n"
+        "    {\n"
+        "        fragmentColor = uColor;\n"
+        "    }\n"
         "}\n";
 
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -217,14 +243,29 @@ bool Renderer2D::Initialize(int screenWidth, int screenHeight)
     m_positionLocation = glGetUniformLocation(m_shaderProgram, "uPosition");
     m_sizeLocation = glGetUniformLocation(m_shaderProgram, "uSize");
     m_colorLocation = glGetUniformLocation(m_shaderProgram, "uColor");
+    m_textureLocation = glGetUniformLocation(m_shaderProgram, "uTexture");
+    m_useTextureLocation = glGetUniformLocation(m_shaderProgram, "uUseTexture");
 
     if (m_positionLocation < 0 ||
         m_sizeLocation < 0 ||
-        m_colorLocation < 0)
+        m_colorLocation < 0 ||
+        m_textureLocation < 0 ||
+        m_useTextureLocation < 0)
     {
         std::cerr << "Failed to get shader uniform location.\n";
         return false;
     }
+
+    glUseProgram(m_shaderProgram);
+
+    glUniform1i(
+        m_textureLocation,
+        0
+    );
+
+    glEnable(GL_BLEND);
+
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glClearColor(
         0.1f,
@@ -257,6 +298,11 @@ void Renderer2D::DrawRect(
 
     glUseProgram(m_shaderProgram);
 
+    glUniform1i(
+        m_useTextureLocation,
+        0
+    );
+
     glUniform2f(
         m_positionLocation,
         ndcX,
@@ -276,6 +322,43 @@ void Renderer2D::DrawRect(
         color.b,
         color.a
     );
+
+    glBindVertexArray(m_vao);
+
+    glDrawElements(
+        GL_TRIANGLES,
+        6,
+        GL_UNSIGNED_INT,
+        nullptr
+    );
+}
+
+void Renderer2D::DrawTexture(
+    const Texture2D& texture,
+    float x,
+    float y,
+    float width,
+    float height
+)
+{
+    const float ndcX = (x / static_cast<float>(m_screenWidth)) * 2.0f - 1.0f;
+    const float ndcY = (y / static_cast<float>(m_screenHeight)) * 2.0f - 1.0f;
+
+    const float ndcWidth = (width / static_cast<float>(m_screenWidth)) * 2.0f;
+    const float ndcHeight = (height / static_cast<float>(m_screenHeight)) * 2.0f;
+
+    glUseProgram(m_shaderProgram);
+
+    glUniform1i(
+        m_useTextureLocation,
+        1
+    );
+
+    glUniform2f( m_positionLocation, ndcX, ndcY );
+    glUniform2f( m_sizeLocation, ndcWidth, ndcHeight );
+    glUniform4f( m_colorLocation, 1.0f, 1.0f, 1.0f, 1.0f );
+
+    texture.Bind();
 
     glBindVertexArray(m_vao);
 
