@@ -28,6 +28,8 @@ target_include_directories(glad
 
 add_executable(LightWeightGameFramework
     src/main.cpp
+    src/framework/Application.cpp
+    src/framework/Renderer2D.cpp
 )
 
 target_compile_features(LightWeightGameFramework PRIVATE cxx_std_20)
