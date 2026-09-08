@@ -8,6 +8,8 @@ struct Color
     float a;
 };
 
+class Texture2D;
+
 class Renderer2D
 {
 public:
@@ -29,6 +31,14 @@ public:
         const Color& color
     );
 
+    void DrawTexture(
+        const Texture2D& texture,
+        float x,
+        float y,
+        float width,
+        float height
+    );
+
 private:
     int m_screenWidth = 0;
     int m_screenHeight = 0;
@@ -42,4 +52,7 @@ private:
     int m_positionLocation = -1;
     int m_sizeLocation = -1;
     int m_colorLocation = -1;
+
+    int m_textureLocation = -1;
+    int m_useTextureLocation = -1;
 };
