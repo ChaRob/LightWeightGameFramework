@@ -1,6 +1,7 @@
-﻿#include "framework/Application.h"
+﻿#include "Game.h"
+
+#include "framework/Application.h"
 #include "framework/Renderer2D.h"
-#include "framework/Texture2D.h"
 
 int main()
 {
@@ -18,18 +19,12 @@ int main()
 		return -1;
 	}
 
-    Texture2D texture;
-    Texture2D texture2;
+	Game game;
 
-    if (!texture.Load("assets/images.jpg"))
-    {
-        return -1;
-    }
-
-    if (!texture2.Load("assets/images2.png"))
-    {
-        return -1;
-    }
+	if (!game.Initialize())
+	{
+		return -1;
+	}
 
     // ============================
     // 실제 게임에서 지정하고 싶은 값
@@ -78,15 +73,20 @@ int main()
             app.RequestClose();
         }
 
+        if (app.IsMouseButtonDown(MouseButton::Left))
+        {
+            x = static_cast<float>(app.GetMouseX());
+            y = static_cast<float>(app.GetMouseY());
+        }
+
 		renderer.BeginFrame();
+		game.Update(app);
 
 		renderer.DrawRect(x, y, width, height, color);
         renderer.DrawRect(x + 50, y + 50, width, height, color2);
         renderer.DrawRect(x + 100, y + 100, width, height, color3);
 
-        renderer.DrawTexture(texture, 400.0f, 200.0f, 256.0f, 256.0f);
-        renderer.DrawTexture(texture2, 800.0f, 400.0f, 256.0f, 256.0f);
-
+		game.Render(renderer);
         app.EndFrame();
     }
 
