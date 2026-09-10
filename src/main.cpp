@@ -73,12 +73,6 @@ int main()
             app.RequestClose();
         }
 
-        if (app.IsMouseButtonDown(MouseButton::Left))
-        {
-            x = static_cast<float>(app.GetMouseX());
-            y = static_cast<float>(app.GetMouseY());
-        }
-
 		renderer.BeginFrame();
 		game.Update(app);
 
