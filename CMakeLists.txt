@@ -36,6 +36,7 @@ target_include_directories(glad
 
 add_executable(LightWeightGameFramework
     src/main.cpp
+    src/Game.cpp
     src/framework/Application.cpp
     src/framework/Renderer2D.cpp
     src/framework/Texture2D.cpp

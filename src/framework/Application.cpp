@@ -30,6 +30,40 @@ namespace
 
         return GLFW_KEY_UNKNOWN;
     }
+
+    int ConvertMouseButton(MouseButton _button)
+    {
+        switch (_button)
+        {
+        case MouseButton::Left:
+            return GLFW_MOUSE_BUTTON_LEFT;
+
+        case MouseButton::Right:
+            return GLFW_MOUSE_BUTTON_RIGHT;
+
+        case MouseButton::Middle:
+            return GLFW_MOUSE_BUTTON_MIDDLE;
+        }
+
+        return GLFW_MOUSE_BUTTON_LEFT;
+    }
+
+    int GetMouseButtonIndex(MouseButton _button)
+    {
+        switch (_button)
+        {
+        case MouseButton::Left:
+            return 0;
+
+        case MouseButton::Right:
+            return 1;
+
+        case MouseButton::Middle:
+            return 2;
+        }
+
+        return 0;
+    }
 }
 
 Application::~Application()
@@ -109,7 +143,16 @@ bool Application::IsRunning() const
 
 void Application::BeginFrame()
 {
+    for (int i = 0; i < 3; ++i)
+    {
+        m_mouseButtonPrevious[i] = m_mouseButtonCurrent[i];
+    }
+
     glfwPollEvents();
+
+    m_mouseButtonCurrent[0] = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+    m_mouseButtonCurrent[1] = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+    m_mouseButtonCurrent[2] = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS;
 
     const double currentTime = glfwGetTime();
 
@@ -151,4 +194,45 @@ int Application::GetWidth() const
 int Application::GetHeight() const
 {
     return m_height;
+}
+
+bool Application::IsMouseButtonDown(MouseButton _button) const
+{
+    const int index = GetMouseButtonIndex(_button);
+
+    return m_mouseButtonCurrent[index];
+}
+
+bool Application::IsMouseButtonPressed(MouseButton _button) const
+{
+    const int index = GetMouseButtonIndex(_button);
+
+    return m_mouseButtonCurrent[index] && m_mouseButtonPrevious[index] == false;
+}
+
+bool Application::IsMouseButtonReleased(MouseButton _button) const
+{
+    const int index = GetMouseButtonIndex(_button);
+
+    return m_mouseButtonCurrent[index] == false && m_mouseButtonPrevious[index];
+}
+
+double Application::GetMouseX() const
+{
+    double x = 0.0;
+    double y = 0.0;
+
+    glfwGetCursorPos(m_window, &x, &y);
+
+    return x;
+}
+
+double Application::GetMouseY() const
+{
+    double x = 0.0;
+    double y = 0.0;
+
+    glfwGetCursorPos(m_window, &x, &y);
+
+    return static_cast<double>(m_height) - y;
 }

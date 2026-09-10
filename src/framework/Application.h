@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Key.h"
+#include "MouseButton.h"
 
 struct GLFWwindow;
 
@@ -29,6 +30,13 @@ public:
     int GetWidth() const;
     int GetHeight() const;
 
+    bool IsMouseButtonDown(MouseButton _button) const;
+    bool IsMouseButtonPressed(MouseButton _button) const;
+    bool IsMouseButtonReleased(MouseButton _button) const;
+
+    double GetMouseX() const;
+    double GetMouseY() const;
+
 private:
     GLFWwindow* m_window = nullptr;
 
@@ -37,4 +45,7 @@ private:
 
     int m_width = 1280;
     int m_height = 720;
+
+    bool m_mouseButtonCurrent[3] = {};
+    bool m_mouseButtonPrevious[3] = {};
 };
