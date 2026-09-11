@@ -1,9 +1,9 @@
 #include "Game.h"
 
-#include "framework/Application.h"
-#include "framework/MouseButton.h"
-#include "framework/Renderer2D.h"
-#include "framework/Key.h"
+#include <framework/Application.h>
+#include <framework/MouseButton.h>
+#include <framework/Renderer2D.h>
+#include <framework/Key.h>
 
 bool Game::Initialize()
 {
@@ -90,6 +90,31 @@ void Game::Update(Application& _app)
     {
         _app.RequestClose();
     }
+
+    if (_app.IsKeyDown(Key::W))
+    {
+        m_y += m_speed * deltaTime;
+    }
+
+    if (_app.IsKeyDown(Key::S))
+    {
+        m_y -= m_speed * deltaTime;
+    }
+
+    if (_app.IsKeyDown(Key::A))
+    {
+        m_x -= m_speed * deltaTime;
+    }
+
+    if (_app.IsKeyDown(Key::D))
+    {
+        m_x += m_speed * deltaTime;
+    }
+
+    if (_app.IsKeyPressed(Key::ESCAPE))
+    {
+        _app.RequestClose();
+    }
 }
 
 void Game::Render(Renderer2D& _renderer)
@@ -104,6 +129,22 @@ void Game::Render(Renderer2D& _renderer)
             textureObject.height
         );
     }
+
+    const Color color =
+    {
+        0.2f,
+        1.0f,
+        0.3f,
+        1.0f
+    };
+
+    _renderer.DrawRect(
+        m_x,
+        m_y,
+        m_width,
+        m_height,
+        color
+    );
 }
 
 bool Game::Contains(const TextureObject& _textureObject, float _x, float _y) const
