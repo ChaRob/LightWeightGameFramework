@@ -66,6 +66,7 @@ void Game::Update(Application& _app)
     const float moveSpeed = 300.0f;
     const float deltaTime = _app.GetDeltaTime();
 
+	// Texture movement
     if (_app.IsKeyDown(Key::W))
     {
         m_textures[0].y += moveSpeed * deltaTime;
@@ -86,11 +87,7 @@ void Game::Update(Application& _app)
         m_textures[0].x += moveSpeed * deltaTime;
     }
 
-    if (_app.IsKeyPressed(Key::ESCAPE))
-    {
-        _app.RequestClose();
-    }
-
+	// Rectangle movement
     if (_app.IsKeyDown(Key::W))
     {
         m_y += m_speed * deltaTime;
@@ -111,6 +108,7 @@ void Game::Update(Application& _app)
         m_x += m_speed * deltaTime;
     }
 
+	// Exit the application when the Escape key is pressed
     if (_app.IsKeyPressed(Key::ESCAPE))
     {
         _app.RequestClose();
