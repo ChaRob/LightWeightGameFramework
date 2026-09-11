@@ -64,6 +64,11 @@ namespace
 
         return 0;
     }
+
+    int GetKeyIndex(Key _key)
+    {
+		return static_cast<int>(_key);
+    }
 }
 
 Application::~Application()
@@ -111,9 +116,7 @@ bool Application::Initialize()
 
     glfwMakeContextCurrent(m_window);
 
-    if (gladLoadGL(
-        reinterpret_cast<GLADloadfunc>(glfwGetProcAddress)
-    ) == 0)
+    if (gladLoadGL(reinterpret_cast<GLADloadfunc>(glfwGetProcAddress)) == 0)
     {
         std::cerr << "Failed to initialize GLAD.\n";
         return false;
@@ -143,12 +146,26 @@ bool Application::IsRunning() const
 
 void Application::BeginFrame()
 {
+	const int keyCount = static_cast<int>(Key::Count);
+
+	for (int i = 0; i < keyCount; ++i)
+	{
+		m_keyPrevious[i] = m_keyCurrent[i];
+	}
+
     for (int i = 0; i < 3; ++i)
     {
         m_mouseButtonPrevious[i] = m_mouseButtonCurrent[i];
     }
 
     glfwPollEvents();
+
+	for (int i = 0; i < keyCount; ++i)
+	{
+		const Key key = static_cast<Key>(i);
+		const int glfwKey = ConvertKey(key);
+		m_keyCurrent[i] = glfwGetKey(m_window, glfwKey) == GLFW_PRESS;
+	}
 
     m_mouseButtonCurrent[0] = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
     m_mouseButtonCurrent[1] = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
@@ -173,9 +190,20 @@ float Application::GetDeltaTime() const
 
 bool Application::IsKeyDown(Key key) const
 {
-    const int glfwKey = ConvertKey(key);
+	const int index = GetKeyIndex(key);
+	return m_keyCurrent[index];
+}
 
-    return glfwGetKey(m_window, glfwKey) == GLFW_PRESS;
+bool Application::IsKeyPressed(Key key) const
+{
+	const int index = GetKeyIndex(key);
+	return m_keyCurrent[index] && m_keyPrevious[index] == false;
+}
+
+bool Application::IsKeyReleased(Key key) const
+{
+	const int index = GetKeyIndex(key);
+	return m_keyCurrent[index] == false && m_keyPrevious[index];
 }
 
 void Application::RequestClose()

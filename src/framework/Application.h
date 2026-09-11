@@ -23,7 +23,9 @@ public:
 
     float GetDeltaTime() const;
 
-    bool IsKeyDown(Key key) const;
+    bool IsKeyDown(Key _key) const;
+	bool IsKeyPressed(Key _key) const;
+	bool IsKeyReleased(Key _key) const;
 
     void RequestClose();
 
@@ -45,6 +47,9 @@ private:
 
     int m_width = 1280;
     int m_height = 720;
+
+	bool m_keyCurrent[static_cast<int>(Key::Count)] = {};
+	bool m_keyPrevious[static_cast<int>(Key::Count)] = {};
 
     bool m_mouseButtonCurrent[3] = {};
     bool m_mouseButtonPrevious[3] = {};
