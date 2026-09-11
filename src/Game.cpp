@@ -3,6 +3,7 @@
 #include "framework/Application.h"
 #include "framework/MouseButton.h"
 #include "framework/Renderer2D.h"
+#include "framework/Key.h"
 
 bool Game::Initialize()
 {
@@ -60,6 +61,34 @@ void Game::Update(Application& _app)
         {
             m_draggingTexture = nullptr;
         }
+    }
+
+    const float moveSpeed = 300.0f;
+    const float deltaTime = _app.GetDeltaTime();
+
+    if (_app.IsKeyDown(Key::W))
+    {
+        m_textures[0].y += moveSpeed * deltaTime;
+    }
+
+    if (_app.IsKeyDown(Key::S))
+    {
+        m_textures[0].y -= moveSpeed * deltaTime;
+    }
+
+    if (_app.IsKeyDown(Key::A))
+    {
+        m_textures[0].x -= moveSpeed * deltaTime;
+    }
+
+    if (_app.IsKeyDown(Key::D))
+    {
+        m_textures[0].x += moveSpeed * deltaTime;
+    }
+
+    if (_app.IsKeyPressed(Key::ESCAPE))
+    {
+        _app.RequestClose();
     }
 }
 
