@@ -1,6 +1,9 @@
 ﻿cmake_minimum_required(VERSION 3.20)
 
-project(LightWeightGameFramework LANGUAGES C CXX)
+project(
+    LightWeightGameFramework
+    VERSION 0.0.1
+    LANGUAGES C CXX)
 
 include(FetchContent)
 
