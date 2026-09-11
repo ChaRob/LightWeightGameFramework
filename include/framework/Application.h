@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Key.h"
-#include "MouseButton.h"
+#include <framework/Key.h>
+#include <framework/MouseButton.h>
 
 struct GLFWwindow;
 

@@ -4,6 +4,11 @@ project(LightWeightGameFramework LANGUAGES C CXX)
 
 include(FetchContent)
 
+
+# =========================
+# GLFW
+# =========================
+
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -17,6 +22,11 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(glfw)
 
+
+# =========================
+# stb
+# =========================
+
 FetchContent_Declare(
     stb
     GIT_REPOSITORY https://github.com/nothings/stb.git
@@ -25,47 +35,69 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(stb)
 
-add_library(glad STATIC
+
+# =========================
+# GLAD
+# =========================
+
+add_library(lwgf_glad STATIC
     third_party/glad/src/gl.c
 )
 
-target_include_directories(glad
+target_include_directories(
+    lwgf_glad
     PUBLIC
         third_party/glad/include
 )
 
-add_executable(LightWeightGameFramework
-    src/main.cpp
-    src/Game.cpp
-    src/framework/Application.cpp
-    src/framework/Renderer2D.cpp
-    src/framework/Texture2D.cpp
+
+# =========================
+# LightWeightGameFramework
+# =========================
+
+add_library(
+    LightWeightGameFramework
+    STATIC
+
+    src/Application.cpp
+    src/Renderer2D.cpp
+    src/Texture2D.cpp
 )
 
-add_custom_command(
-    TARGET LightWeightGameFramework
-    POST_BUILD
-
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/assets
-        $<TARGET_FILE_DIR:LightWeightGameFramework>/assets
+add_library(
+    LWGF::Framework
+    ALIAS LightWeightGameFramework
 )
 
 target_compile_features(
     LightWeightGameFramework
-    PRIVATE
+    PUBLIC
         cxx_std_20
 )
 
 target_include_directories(
     LightWeightGameFramework
+
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+
     PRIVATE
         ${stb_SOURCE_DIR}
 )
 
 target_link_libraries(
     LightWeightGameFramework
-    PRIVATE 
+
+    PRIVATE
         glfw
-        glad
+        lwgf_glad
 )
+
+
+# =========================
+# Sample Game
+# =========================
+
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    add_subdirectory(sample)
+endif()

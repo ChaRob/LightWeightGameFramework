@@ -34,4 +34,10 @@ private:
 
     float m_dragOffsetX = 0.0f;
     float m_dragOffsetY = 0.0f;
+
+    float m_x = 100.0f;
+    float m_y = 100.0f;
+    float m_width = 64.0f;
+    float m_height = 64.0f;
+    float m_speed = 200.0f;
 };
