@@ -26,6 +26,18 @@ namespace
 
         case Key::ESCAPE:
             return GLFW_KEY_ESCAPE;
+
+        case Key::UP:
+            return GLFW_KEY_UP;
+
+        case Key::DOWN:
+            return GLFW_KEY_DOWN;
+
+        case Key::LEFT:
+            return GLFW_KEY_LEFT;
+
+        case Key::RIGHT:
+            return GLFW_KEY_RIGHT;
         }
 
         return GLFW_KEY_UNKNOWN;
