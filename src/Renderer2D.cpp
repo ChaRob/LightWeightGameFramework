@@ -1,5 +1,8 @@
 #include <framework/Renderer2D.h>
 #include <framework/Texture2D.h>
+#include <framework/Font.h>
+
+#include <cmath>
 
 #include <iostream>
 #include <glad/gl.h>
@@ -166,12 +169,14 @@ bool Renderer2D::Initialize(int screenWidth, int screenHeight)
         "layout (location = 1) in vec2 texCoord;\n"
         "uniform vec2 uPosition;\n"
         "uniform vec2 uSize;\n"
+        "uniform vec2 uUVMin;\n"
+        "uniform vec2 uUVMax;\n"
         "out vec2 vTexCoord;\n"
         "void main()\n"
         "{\n"
         "    vec2 transformedPosition = position.xy * uSize + uPosition;\n"
         "    gl_Position = vec4(transformedPosition, position.z, 1.0);\n"
-        "    vTexCoord = texCoord;\n"
+        "    vTexCoord = mix(uUVMin, uUVMax, texCoord);\n"
         "}\n";
 
     const char* fragmentShaderSource =
@@ -186,6 +191,11 @@ bool Renderer2D::Initialize(int screenWidth, int screenHeight)
         "    if (uUseTexture == 1)\n"
         "    {\n"
         "        fragmentColor = texture(uTexture, vTexCoord) * uColor;\n"
+        "    }\n"
+        "    else if (uUseTexture == 2)\n"
+        "    {\n"
+        "        float coverage = texture(uTexture, vTexCoord).r;\n"
+        "        fragmentColor = vec4(uColor.rgb, uColor.a * coverage);\n"
         "    }\n"
         "    else\n"
         "    {\n"
@@ -245,12 +255,16 @@ bool Renderer2D::Initialize(int screenWidth, int screenHeight)
     m_colorLocation = glGetUniformLocation(m_shaderProgram, "uColor");
     m_textureLocation = glGetUniformLocation(m_shaderProgram, "uTexture");
     m_useTextureLocation = glGetUniformLocation(m_shaderProgram, "uUseTexture");
+    m_uvMinLocation = glGetUniformLocation(m_shaderProgram, "uUVMin");
+    m_uvMaxLocation = glGetUniformLocation(m_shaderProgram, "uUVMax");
 
     if (m_positionLocation < 0 ||
         m_sizeLocation < 0 ||
         m_colorLocation < 0 ||
         m_textureLocation < 0 ||
-        m_useTextureLocation < 0)
+        m_useTextureLocation < 0 ||
+        m_uvMinLocation < 0 ||
+        m_uvMaxLocation < 0)
     {
         std::cerr << "Failed to get shader uniform location.\n";
         return false;
@@ -262,6 +276,9 @@ bool Renderer2D::Initialize(int screenWidth, int screenHeight)
         m_textureLocation,
         0
     );
+
+    glUniform2f(m_uvMinLocation, 0.0f, 0.0f);
+    glUniform2f(m_uvMaxLocation, 1.0f, 1.0f);
 
     glEnable(GL_BLEND);
 
@@ -358,6 +375,9 @@ void Renderer2D::DrawTexture(
     glUniform2f( m_sizeLocation, ndcWidth, ndcHeight );
     glUniform4f( m_colorLocation, 1.0f, 1.0f, 1.0f, 1.0f );
 
+    glUniform2f(m_uvMinLocation, 0.0f, 0.0f);
+    glUniform2f(m_uvMaxLocation, 1.0f, 1.0f);
+
     texture.Bind();
 
     glBindVertexArray(m_vao);
@@ -368,4 +388,92 @@ void Renderer2D::DrawTexture(
         GL_UNSIGNED_INT,
         nullptr
     );
+}
+
+void Renderer2D::DrawText(
+    const Font& _font,
+    std::string_view _text,
+    float _x,
+    float _baselineY,
+    float _pixelHeight,
+    const Color& _color
+)
+{
+    if (!_font.IsLoaded() || _text.empty() ||
+        !std::isfinite(_pixelHeight) || _pixelHeight <= 0.0f ||
+        m_screenWidth <= 0 || m_screenHeight <= 0)
+    {
+        return;
+    }
+
+    const float scale = _pixelHeight / _font.m_pixelHeight;
+    float penX = _x;
+
+    glUseProgram(m_shaderProgram);
+    glUniform1i(m_useTextureLocation, 2);
+    glUniform4f(m_colorLocation, _color.r, _color.g, _color.b, _color.a);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, _font.m_textureId);
+    glBindVertexArray(m_vao);
+
+    for (const char character : _text)
+    {
+        const unsigned char value = static_cast<unsigned char>(character);
+        const unsigned int index =
+            (value >= Font::FirstCharacter &&
+             value < Font::FirstCharacter + Font::CharacterCount)
+            ? value - Font::FirstCharacter
+            : static_cast<unsigned int>('?' - Font::FirstCharacter);
+
+        const Font::Glyph& glyph = _font.m_glyphs[index];
+
+        if (glyph.width > 0.0f && glyph.height > 0.0f)
+        {
+            const float x = penX + glyph.xOffset * scale;
+            const float y = _baselineY + glyph.yOffset * scale;
+            const float width = glyph.width * scale;
+            const float height = glyph.height * scale;
+
+            const float ndcX = (x / static_cast<float>(m_screenWidth)) * 2.0f - 1.0f;
+            const float ndcY = (y / static_cast<float>(m_screenHeight)) * 2.0f - 1.0f;
+            const float ndcWidth = (width / static_cast<float>(m_screenWidth)) * 2.0f;
+            const float ndcHeight = (height / static_cast<float>(m_screenHeight)) * 2.0f;
+
+            glUniform2f(m_positionLocation, ndcX, ndcY);
+            glUniform2f(m_sizeLocation, ndcWidth, ndcHeight);
+            glUniform2f(m_uvMinLocation, glyph.u0, glyph.v0);
+            glUniform2f(m_uvMaxLocation, glyph.u1, glyph.v1);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+        }
+
+        penX += glyph.advance * scale;
+    }
+}
+
+float Renderer2D::MeasureTextWidth(
+    const Font& _font,
+    std::string_view _text,
+    float _pixelHeight
+) const
+{
+    if (!_font.IsLoaded() || !std::isfinite(_pixelHeight) || _pixelHeight <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    float advance = 0.0f;
+
+    for (const char character : _text)
+    {
+        const unsigned char value = static_cast<unsigned char>(character);
+        const unsigned int index =
+            (value >= Font::FirstCharacter &&
+             value < Font::FirstCharacter + Font::CharacterCount)
+            ? value - Font::FirstCharacter
+            : static_cast<unsigned int>('?' - Font::FirstCharacter);
+
+        advance += _font.m_glyphs[index].advance;
+    }
+
+    return advance * (_pixelHeight / _font.m_pixelHeight);
 }

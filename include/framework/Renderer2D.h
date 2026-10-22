@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string_view>
+
 struct Color
 {
     float r;
@@ -9,6 +11,7 @@ struct Color
 };
 
 class Texture2D;
+class Font;
 
 class Renderer2D
 {
@@ -39,6 +42,23 @@ public:
         float height
     );
 
+    // (_x, _baselineY) is the left-hand baseline, in bottom-left-origin pixels.
+    void DrawText(
+        const Font& _font,
+        std::string_view _text,
+        float _x,
+        float _baselineY,
+        float _pixelHeight,
+        const Color& _color
+    );
+
+    // Returns pen advance, not the tight ink bounding box.
+    float MeasureTextWidth(
+        const Font& _font,
+        std::string_view _text,
+        float _pixelHeight
+    ) const;
+
 private:
     int m_screenWidth = 0;
     int m_screenHeight = 0;
@@ -55,4 +75,6 @@ private:
 
     int m_textureLocation = -1;
     int m_useTextureLocation = -1;
+    int m_uvMinLocation = -1;
+    int m_uvMaxLocation = -1;
 };

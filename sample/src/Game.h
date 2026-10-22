@@ -3,6 +3,7 @@
 #include <array>
 
 #include "framework/Texture2D.h"
+#include "framework/Font.h"
 
 class Application;
 class Renderer2D;
@@ -29,6 +30,9 @@ private:
     bool Contains(const TextureObject& _textureObject, float _x, float _y) const;
 
 	std::array<TextureObject, 2> m_textures;
+
+    Font m_font;
+    float m_elapsedSeconds = 0.0f;
 
     TextureObject* m_draggingTexture = nullptr;
 
