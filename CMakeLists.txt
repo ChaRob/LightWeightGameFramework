@@ -65,6 +65,7 @@ add_library(
     src/Application.cpp
     src/Renderer2D.cpp
     src/Texture2D.cpp
+    src/Font.cpp
 )
 
 add_library(

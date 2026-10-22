@@ -145,3 +145,7 @@ git submodule update --init --recursive
 - LWGF 소스 코드를 게임 저장소에 복사하지 않습니다.
 - 게임별로 필요한 LWGF Commit을 독립적으로 유지합니다.
 - Framework 기능은 실제 게임 개발에서 필요성이 확인된 뒤 추가합니다.
+
+## Text rendering
+
+- [Text rendering V1](docs/TextRendering.md): font asset loading, ASCII HUD text, limits and verification.
