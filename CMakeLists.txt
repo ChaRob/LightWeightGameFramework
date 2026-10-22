@@ -2,7 +2,7 @@
 
 project(
     LightWeightGameFramework
-    VERSION 0.0.1
+    VERSION 0.0.3
     LANGUAGES C CXX)
 
 include(FetchContent)
