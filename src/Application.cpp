@@ -94,7 +94,7 @@ Application::~Application()
     glfwTerminate();
 }
 
-bool Application::Initialize()
+bool Application::Initialize(const char* _windowTitle)
 {
     if (glfwInit() != GLFW_TRUE)
     {
@@ -115,7 +115,7 @@ bool Application::Initialize()
     m_window = glfwCreateWindow(
         m_width,
         m_height,
-        "LightWeightGameFramework",
+        (_windowTitle != nullptr && _windowTitle[0] != '\0') ? _windowTitle : "LightWeightGameFramework",
         nullptr,
         nullptr
     );

@@ -14,7 +14,7 @@ public:
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
 
-    bool Initialize();
+    bool Initialize(const char* _windowTitle = "LightWeightGameFramework");
 
     bool IsRunning() const;
 
