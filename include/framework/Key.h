@@ -7,6 +7,7 @@ enum class Key
 	S,
 	D,
 	ESCAPE,
+	SPACE,
 
 	UP,
 	DOWN,
