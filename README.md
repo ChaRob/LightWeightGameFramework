@@ -134,6 +134,36 @@ git submodule update --init --recursive
 
 이 명령은 게임 저장소가 기록하고 있는 LWGF Commit으로 Submodule을 맞춥니다.
 
+## 키보드 입력
+
+`<framework/Key.h>`의 `Key`는 GLFW 3.5.1에서 정의한 **120개의 실제 키 식별자**를 모두 지원합니다. 기존 `Key::W`, `Key::ESCAPE`, 방향키 API는 그대로 사용할 수 있습니다.
+
+- 문자/숫자 행: `Key::A` ~ `Key::Z`, `Key::NUM_0` ~ `Key::NUM_9`, `Key::SPACE`, 기호 키
+- 이동/편집: 방향키, `Key::ENTER`, `Key::TAB`, `Key::BACKSPACE`, `Key::DELETE_KEY`, `Key::HOME`, `Key::END`, `Key::PAGE_UP`, `Key::PAGE_DOWN`
+- 기능/특수: `Key::F1` ~ `Key::F25`, `Key::PRINT_SCREEN`, `Key::PAUSE`, `Key::CAPS_LOCK` 등
+- 숫자패드/수정키: `Key::KP_0` ~ `Key::KP_9`, `Key::KP_ENTER`, `Key::LEFT_SHIFT`, `Key::RIGHT_CONTROL`, `Key::LEFT_ALT`, `Key::RIGHT_SUPER` 등
+
+`Application::BeginFrame()` 이후 `IsKeyDown`(누르고 있음), `IsKeyPressed`(이번 프레임에 눌림), `IsKeyReleased`(이번 프레임에 떼어짐)를 사용합니다.
+
+```cpp
+if (_app.IsKeyPressed(Key::SPACE))
+{
+    // 점프 등 1회 동작
+}
+
+if (_app.IsKeyDown(Key::LEFT_SHIFT) && _app.IsKeyDown(Key::NUM_1))
+{
+    // Shift + 숫자행 1
+}
+
+if (_app.IsKeyReleased(Key::KP_ENTER))
+{
+    // 숫자패드 Enter를 뗀 순간
+}
+```
+
+`NUM_1`은 숫자행, `KP_1`은 숫자패드 키입니다. 입력은 GLFW 키 코드 기준이며 문자 입력(한글 IME/유니코드), OS가 가로채는 단축키, 키의 스캔코드 구분은 지원 범위에 포함되지 않습니다. 현재 프레임 폴링 방식이므로 두 프레임 사이에 눌렀다 떼는 매우 짧은 입력은 놓칠 수 있습니다.
+
 ## 문서
 
 - [Goals](docs/Goals.md): LWGF의 목적, 범위, 개발 원칙
