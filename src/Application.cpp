@@ -33,6 +33,9 @@ namespace
         case Key::Q:
             return GLFW_KEY_Q;
 
+        case Key::E:
+            return GLFW_KEY_E;
+
         case Key::UP:
             return GLFW_KEY_UP;
 
