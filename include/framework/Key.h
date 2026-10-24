@@ -9,6 +9,7 @@ enum class Key
 	ESCAPE,
 	SPACE,
 	Q,
+	E,
 
 	UP,
 	DOWN,
