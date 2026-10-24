@@ -30,6 +30,9 @@ namespace
         case Key::SPACE:
             return GLFW_KEY_SPACE;
 
+        case Key::Q:
+            return GLFW_KEY_Q;
+
         case Key::UP:
             return GLFW_KEY_UP;
 
