@@ -97,6 +97,8 @@ struct AudioSystem::Impl
     bool musicPaused = false;
 };
 
+AudioSystem::AudioSystem() = default;
+
 AudioSystem::~AudioSystem()
 {
     Shutdown();
