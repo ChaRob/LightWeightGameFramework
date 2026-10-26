@@ -21,7 +21,7 @@ public:
         BackendError
     };
 
-    AudioSystem() = default;
+    AudioSystem();
     ~AudioSystem();
 
     AudioSystem(const AudioSystem&) = delete;
