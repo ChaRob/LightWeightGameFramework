@@ -179,3 +179,14 @@ if (_app.IsKeyReleased(Key::KP_ENTER))
 ## Text rendering
 
 - [Text rendering V1](docs/TextRendering.md): font asset loading, ASCII HUD text, limits and verification.
+
+## Audio V1
+
+LWGF는 miniaudio를 이용하여 짧은 효과음을 메모리에 로드한 뒤 중첩 재생하고,
+BGM을 스트리밍 방식으로 반복 재생할 수 있습니다.
+Audio 초기화 실패는 Game이 처리하며, 파일 로드 실패 시 다른 사운드에 영향이 없습니다.
+전체 효과음 동시 재생 수에 한도를 두고, 초과 요청은 거절합니다.
+
+Sample: SPACE = 효과음, M = BGM, P = 일시정지, R = 재개, N = 정지.
+
+- [Audio V1 사용법 및 정책](docs/Audio.md)
