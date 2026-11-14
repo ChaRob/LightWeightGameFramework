@@ -7,12 +7,13 @@
 #include <framework/SpriteAnimation.h>
 
 class Application;
+class AssetReader;
 class Renderer2D;
 
 class Game
 {
 public:
-    bool Initialize();
+    bool Initialize(const AssetReader& _assets);
 
     void Update(Application& _app);
     void Render(Renderer2D& _renderer);

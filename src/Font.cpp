@@ -1,5 +1,7 @@
 #include <framework/Font.h>
 
+#include "GraphicsAssetData.h"
+
 #include <glad/gl.h>
 
 #include <array>
@@ -48,7 +50,7 @@ bool Font::Load(const char* _path, float _pixelHeight)
         return false;
     }
 
-    std::vector<unsigned char> fontData(static_cast<std::size_t>(fileSize));
+    std::vector<std::byte> fontData(static_cast<std::size_t>(fileSize));
     file.seekg(0, std::ios::beg);
 
     if (!file.read(reinterpret_cast<char*>(fontData.data()),
@@ -58,7 +60,45 @@ bool Font::Load(const char* _path, float _pixelHeight)
         return false;
     }
 
-    if (stbtt_GetFontOffsetForIndex(fontData.data(), 0) < 0)
+    return LoadData(fontData, _pixelHeight, _path);
+}
+
+bool Font::Load(const AssetReader& _assets, std::string_view _path, float _pixelHeight)
+{
+    if (!std::isfinite(_pixelHeight) || _pixelHeight <= 0.0f)
+    {
+        std::cerr << "Invalid font pixel height.\n";
+        return false;
+    }
+
+    std::vector<std::byte> fontData;
+    if (!lwgf::detail::ReadGraphicsAsset(_assets, _path, fontData))
+        return false;
+    return LoadData(fontData, _pixelHeight, _path);
+}
+
+bool Font::LoadData(std::span<const std::byte> _data, float _pixelHeight,
+                    std::string_view _path)
+{
+    // stb_truetype assumes trusted input and has no length-aware parser.
+    // Reject obviously short/invalid SFNT or collection headers before use.
+    const auto* fontData = reinterpret_cast<const unsigned char*>(_data.data());
+    if (_data.size() < 12)
+    {
+        std::cerr << "Invalid font data size: " << _path << '\n';
+        return false;
+    }
+
+    // A TTC with at least one font must have its first offset at bytes 12..15.
+    if (fontData[0] == 't' && fontData[1] == 't' && fontData[2] == 'c' &&
+        fontData[3] == 'f' && _data.size() < 16)
+    {
+        std::cerr << "Invalid font collection: " << _path << '\n';
+        return false;
+    }
+
+    const int offset = stbtt_GetFontOffsetForIndex(fontData, 0);
+    if (offset < 0 || static_cast<std::size_t>(offset) > _data.size() - 12)
     {
         std::cerr << "Unsupported font data: " << _path << '\n';
         return false;
@@ -84,7 +124,7 @@ bool Font::Load(const char* _path, float _pixelHeight)
         }
 
         const int success = stbtt_PackFontRange(
-            &context, fontData.data(), 0, _pixelHeight,
+            &context, fontData, 0, _pixelHeight,
             static_cast<int>(FirstCharacter),
             static_cast<int>(CharacterCount),
             packed.data()

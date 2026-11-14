@@ -7,26 +7,26 @@
 #include <framework/Renderer2D.h>
 #include <framework/Key.h>
 
-bool Game::Initialize()
+bool Game::Initialize(const AssetReader& _assets)
 {
-    if (!m_textures[0].texture.Load("assets/images.jpg"))
+    if (!m_textures[0].texture.Load(_assets, "images.jpg"))
     {
         return false;
     }
 
-    if (!m_textures[1].texture.Load("assets/images2.png"))
+    if (!m_textures[1].texture.Load(_assets, "images2.png"))
     {
         return false;
     }
 
-    if (!m_font.Load("assets/fonts/AnonymousPro-Regular.ttf", 48.0f))
+    if (!m_font.Load(_assets, "fonts/AnonymousPro-Regular.ttf", 48.0f))
     {
         return false;
     }
 
-    if (!m_walkNearest.Load("assets/player_walk_down.png", TextureFilter::Nearest) ||
-        !m_walkLinear.Load("assets/player_walk_down.png") ||
-        !m_regionTest.Load("assets/region_test.png") ||
+    if (!m_walkNearest.Load(_assets, "player_walk_down.png", TextureFilter::Nearest) ||
+        !m_walkLinear.Load(_assets, "player_walk_down.png") ||
+        !m_regionTest.Load(_assets, "region_test.png") ||
         !m_walk.ConfigureStrip({0, 0, 16, 16}, 4, 0.07) ||
         !m_once.ConfigureStrip({0, 0, 16, 16}, 4, 0.07, AnimationMode::Once))
     {

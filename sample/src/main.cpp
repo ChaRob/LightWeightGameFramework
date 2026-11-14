@@ -1,14 +1,82 @@
 #include "Game.h"
 
+#include <filesystem>
 #include <iostream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 #include <framework/Application.h>
+#include <framework/AssetReader.h>
 #include <framework/AudioSystem.h>
 #include <framework/Key.h>
 #include <framework/Renderer2D.h>
 
-int main()
+namespace
 {
+    namespace fs = std::filesystem;
+
+    fs::path ExecutableDirectory(const fs::path& _argv0)
+    {
+#ifdef _WIN32
+        (void)_argv0;
+        std::vector<wchar_t> buffer(512);
+        while (true)
+        {
+            const auto length = GetModuleFileNameW(nullptr, buffer.data(),
+                                                   static_cast<DWORD>(buffer.size()));
+            if (length == 0)
+                throw std::runtime_error("Cannot determine executable path");
+            if (length < buffer.size())
+                return fs::path(std::wstring(buffer.data(), length)).parent_path();
+            if (buffer.size() >= 32768)
+                throw std::runtime_error("Executable path exceeds supported length");
+            buffer.resize(buffer.size() * 2);
+        }
+#else
+        return fs::absolute(_argv0).parent_path();
+#endif
+    }
+
+    std::string Utf8(const fs::path& _path)
+    {
+        const auto utf8 = _path.u8string();
+        return std::string(utf8.begin(), utf8.end());
+    }
+}
+
+template<typename Char>
+int RunSample(int _argc, Char** _argv)
+{
+    bool packaged = false;
+    fs::path root;
+    if (_argc == 1)
+        root = ExecutableDirectory(fs::path(_argv[0])) / "assets";
+    else if (_argc == 3 &&
+             (fs::path(_argv[1]) == "--directory" || fs::path(_argv[1]) == "--package"))
+    {
+        packaged = fs::path(_argv[1]) == "--package";
+        root = fs::absolute(fs::path(_argv[2]));
+    }
+    else
+    {
+        std::cerr << "Usage: SampleGame [--directory <root> | --package <root>]\n";
+        return 2;
+    }
+
+    AssetReader assets;
+    if (!(packaged ? assets.OpenPackage(root) : assets.OpenDirectory(root)))
+        return -1;
+    std::cout << "[Sample] Asset mode: " << (packaged ? "Package" : "Directory")
+              << " (" << Utf8(root) << ")\n";
+
     Application app;
     if (!app.Initialize())
     {
@@ -24,20 +92,27 @@ int main()
     // Audio failure is not fatal for this sample.
     AudioSystem audio;
     AudioSystem::EffectId clickEffect = AudioSystem::InvalidEffect;
-    if (audio.Initialize())
+    const auto clickPath = Utf8(root / "audio" / "click.wav");
+    const auto musicPath = Utf8(root / "audio" / "music.wav");
+    if (packaged)
     {
-        clickEffect = audio.LoadEffect("assets/audio/click.wav");
+        std::cout << "[Sample] Package audio disabled until AudioSystem integration.\n";
+    }
+    else if (audio.Initialize())
+    {
+        clickEffect = audio.LoadEffect(clickPath.c_str());
     }
     else
     {
         std::cerr << "[Sample] Audio unavailable; continuing without sound.\n";
     }
 
-    std::cout << "[Sample] Audio keys: SPACE=effect, M=play/loop music, "
-                 "P=pause, R=resume, N=stop.\n";
+    if (!packaged)
+        std::cout << "[Sample] Audio keys: SPACE=effect, M=play/loop music, "
+                     "P=pause, R=resume, N=stop.\n";
 
     Game game;
-    if (!game.Initialize())
+    if (!game.Initialize(assets))
     {
         return -1;
     }
@@ -57,9 +132,9 @@ int main()
             }
         }
 
-        if (app.IsKeyPressed(Key::M))
+        if (!packaged && app.IsKeyPressed(Key::M))
         {
-            audio.PlayMusic("assets/audio/music.wav");
+            audio.PlayMusic(musicPath.c_str());
         }
         if (app.IsKeyPressed(Key::P))
         {
@@ -81,4 +156,21 @@ int main()
     }
 
     return 0;
+}
+
+#ifdef _WIN32
+int wmain(int _argc, wchar_t** _argv)
+#else
+int main(int _argc, char** _argv)
+#endif
+{
+    try
+    {
+        return RunSample(_argc, _argv);
+    }
+    catch (const std::exception& _exception)
+    {
+        std::cerr << "[Sample] " << _exception.what() << '\n';
+        return -1;
+    }
 }

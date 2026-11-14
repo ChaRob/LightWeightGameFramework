@@ -1,6 +1,6 @@
 # LWGF Asset Package V1 — 작업 초안
 
-상태: 내부 V1 wire format, 무결성, CLI Packer 및 AssetReader/AssetStream 공개 API 구현. 기존 리소스 로더와 게임별 배포 연동은 아직 개발 중.
+상태: 내부 V1 wire format, 무결성, CLI Packer 및 AssetReader/AssetStream 공개 API 구현. Texture/Font 연동 구현. Audio 및 게임별 배포 연동은 아직 개발 중.
 출시 포맷은 테스트 완료 전 변경될 수 있다.
 
 ## Product Goal
@@ -43,7 +43,7 @@ Index는 내부 메타데이터이며 게임은 AssetReader/AssetStream 공개 A
 ## 미결정 Policy
 
 - 실제 게임 시작 시 executable-relative root 선정 및 CMake 배포 디렉터리 복사/설치 정책.
-- 기존 Texture/Font/Audio Load(path)와 새 AssetReader 연동 API.
+- 기존 Audio LoadEffect/PlayMusic(path)와 새 AssetReader 연동 API.
 
 ## 무결성 정책 (B안 확정)
 
@@ -167,7 +167,7 @@ CMake configure 자체는 기존 Framework 의존성을 계속 준비한다.
 
 `AssetPackerSampleTests`: 실제 sample PNG/JPG/TTF/WAV 에셋을 CLI로 pack/verify,
 64 KiB 분할 파일 크기 검사 및 모든 실제 원본 파일과 package entry byte 단위 비교.
-SampleGame은 아직 원본 파일로 실행한다. CTest는 실제 Sample 패키지의 공개 AssetReader API 비교까지 수행한다.
+CTest는 실제 Sample 패키지의 공개 AssetReader API 비교까지 수행한다.
 
 ## 런타임 AssetReader / AssetStream
 
@@ -210,7 +210,7 @@ if (!music->Read(buffer, bytesRead))
 music->Seek(0);
 ~~~
 
-위 코드는 파일 바이트 읽기 예시이며 Texture/Font/Audio 디코딩 연동은 다음 단계다.
+위 코드는 파일 바이트 읽기 예시다. Texture/Font는 아래 공개 Load overload를 사용하고 Audio 연동은 다음 단계다.
 실제 Game은 root를 실행 파일 위치 또는 개발 설정에서 결정할 수 있다.
 상대 root는 OpenDirectory/OpenPackage 호출 시 절대 경로로 고정한다.
 
@@ -247,16 +247,82 @@ source 재설정 실패 및 stream 수명, no fallback, 손상/누락 오류를 
 AssetPackerSampleTests는 실제 sample 파일을 두 mode에서 ReadAll 및 분할 stream으로
 읽어 동일한 데이터를 얻는지 추가 비교한다.
 
+## 에셋 루트와 Texture/Font 로딩
+
+에셋 루트는 CMakeLists.txt 위치로 고정되지 않는다. Packer에 지정한 source directory와
+Directory 모드에 지정한 root가 같은 논리 경로 기준을 가진다.
+
+- LWGF SampleGame의 원본 에셋: `LightWeightGameFramework/sample/assets/`.
+- 별도 게임 프로젝트는 자기 프로젝트의 `assets/` 등을 선택할 수 있다.
+  예를 들어 MazeRunner의 최상위 CMakeLists.txt 옆에 assets/가 있으면 그 폴더를 지정한다.
+- 배포 시에는 assets.pak과 assets.N이 있는 디렉터리를 Package root로 지정한다.
+  패키지 파일을 exe와 같은 폴더에 둘 경우 그 폴더 자체가 root이다.
+- 논리 경로는 항상 root 내부 기준. `assets/`는 앞에 붙이지 않는다.
+
+~~~cpp
+#include <framework/AssetReader.h>
+#include <framework/Texture2D.h>
+#include <framework/Font.h>
+
+// Application과 Renderer 초기화 이후, GL context가 살아 있는 상태에서:
+AssetReader assets;
+if (!assets.OpenDirectory("sample/assets"))
+    return -1;
+// Package 모드에서는 위 한 줄을 assets.OpenPackage("out/packed-assets")로 변경.
+
+Texture2D texture;
+Font font;
+if (!texture.Load(assets, "player_walk_down.png", TextureFilter::Nearest) ||
+    !font.Load(assets, "fonts/AnonymousPro-Regular.ttf", 48.0f))
+    return -1;
+~~~
+
+Texture2D와 Font는 기존 Load(const char*, ...) 물리 경로 API를 유지한다.
+새 Load(const AssetReader&, string_view, ...)는 동일한 AssetReader로 선택된 모드에서
+해당 에셋 하나를 메모리에 읽어 stb_image/stb_truetype으로 디코딩한다. 디코딩 후
+공통 GPU 업로드/atlas 생성 코드를 사용하고 원본 파일을 임시로 추출하지 않는다.
+원본 인코딩 데이터 크기 0 또는 INT_MAX 초과는 메모리 할당 전에 거부한다.
+Texture/Font는 성공 시 GPU 자원을 자체 소유하며 AssetReader 수명에 의존하지 않는다.
+실패 시 기존 GPU 자원/크기/폰트 상태를 유지한다. Texture는 생성/업로드 오류도 확인한다.
+stb_truetype은 신뢰 가능한 폰트 파일용이며 임의로 조작된 폰트에 대한 안전한 파서를
+제공하지 않는다. 새 코드는 기본 길이/offset 검사를 추가하나 완전한 포맷 검증은 아니다.
+
+### SampleGame 수동 실행
+
+프로젝트 루트의 PowerShell에서:
+
+~~~powershell
+cmake --build out/build/x64-debug
+.\out\build\x64-debug\sample\SampleGame.exe --directory .\sample\assets
+
+.\out\build\x64-debug\LWGFAssetPacker.exe pack .\sample\assets .\out\packed-assets 65536
+.\out\build\x64-debug\sample\SampleGame.exe --package .\out\packed-assets
+~~~
+
+인자 없는 기존 SampleGame 실행은 exe 옆의 assets/를 Directory root로 선택한다.
+명시적인 상대 root는 실행 당시 CWD 기준으로 절대 경로를 고정한다.
+`--directory .\sample\assets`는 원본 폴더를 직접 읽으므로 이미지/폰트 교체를
+다음 실행에서 바로 확인할 수 있다. 현재 CMake의 POST_BUILD 복사 정책은 변경하지 않았다.
+Package 모드에서는 이번 단계에서 Texture/Font만 활성화하고 오디오는 명시적으로
+비활성화한다. 원본 오디오 fallback은 하지 않는다. Directory 모드는 기존 오디오 유지.
+
+`GraphicsAssetTests`는 GPU가 없는 CI에서 실제 Sample JPG/PNG/TTF를
+legacy file / Directory / Package 세 경로로 로딩하고, OpenGL 업로드 호출을
+test double로 대체하여 RGBA 이미지와 glyph atlas byte/크기/filter 및 실패 시
+기존 texture 보존을 비교한다. 실제 GPU 렌더링, 애니메이션/폰트 시각 결과는
+Windows SampleGame을 실행하여 확인한다.
+
 ## 다음 단계 / 완료 기준
 
 1. 분할 I/O 및 경계 테스트 (Windows CI Debug/Release 및 사용자 로컬 Debug 통과).
 2. 무결성 B안 및 내부 index codec (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
 3. CLI Packer 및 경로/출력 정책 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
-4. AssetReader/AssetStream 공개 API, Directory/Package 소스 (이번 작업, 검증 필요).
-5. 기존 Texture/Font 연동, Audio의 독립 스트리밍 연동.
-6. 외부 CMake 연동 및 에셋 변경/삭제 감지, 배포 결과물 검증.
-7. SampleGame 및 MazeRunner 실제 Windows 실행, 기존 CTest 회귀 검사.
-8. 동일 에셋/동일 실행 환경에서 RAM, 시작 시간, 프레임 시간, 배포 용량 비교.
+4. AssetReader/AssetStream 공개 API, Directory/Package 소스 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
+5. Texture/Font 연동 및 SampleGame 모드 선택 (이번 작업, 검증 필요).
+6. Audio의 독립 스트리밍 연동.
+7. 외부 CMake 연동 및 에셋 변경/삭제 감지, 배포 결과물 검증.
+8. SampleGame 및 MazeRunner 실제 Windows 실행, 기존 CTest 회귀 검사.
+9. 동일 에셋/동일 실행 환경에서 RAM, 시작 시간, 프레임 시간, 배포 용량 비교.
 
 MazeRunner HUD 폰트는 현재 LWGF sample에서 복사되므로 게임 assets 루트만
 패키징하면 누락된다. 원본 위치 통합과 OFL 라이선스 배포는 게임 연동 시 검토한다.

@@ -159,6 +159,15 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
         target_link_libraries(AssetReaderTests PRIVATE LWGF::Framework lwgf_asset_io)
         add_test(NAME AssetReaderTests COMMAND AssetReaderTests)
         if(TARGET LWGFAssetPacker)
+            add_executable(GraphicsAssetTests tests/GraphicsAssetTests.cpp)
+            target_link_libraries(GraphicsAssetTests PRIVATE LWGF::Framework lwgf_glad)
+            add_test(NAME GraphicsAssetTests
+                COMMAND ${CMAKE_COMMAND}
+                    "-DPACKER=$<TARGET_FILE:LWGFAssetPacker>"
+                    "-DGRAPHICS=$<TARGET_FILE:GraphicsAssetTests>"
+                    "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/sample/assets"
+                    "-DOUTPUT_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/GraphicsAssetTests.cmake")
             add_executable(AssetPackerTests
                 tests/AssetPackerTests.cpp
                 tools/AssetPacker.cpp
