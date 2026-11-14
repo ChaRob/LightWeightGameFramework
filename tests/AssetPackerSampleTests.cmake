@@ -1,5 +1,5 @@
 # Exercise the real CLI against the sample PNG/JPG/TTF/WAV assets.
-if(NOT DEFINED PACKER OR NOT DEFINED SOURCE OR NOT DEFINED OUTPUT_ROOT OR NOT DEFINED COMPARE)
+if(NOT DEFINED PACKER OR NOT DEFINED SOURCE OR NOT DEFINED OUTPUT_ROOT OR NOT DEFINED COMPARE OR NOT DEFINED READER)
     message(FATAL_ERROR "Missing AssetPackerSampleTests arguments")
 endif()
 string(RANDOM LENGTH 16 ALPHABET 0123456789abcdef suffix)
@@ -43,5 +43,14 @@ execute_process(
 )
 if(NOT result STREQUAL "0")
     message(FATAL_ERROR "Sample byte comparison failed: ${result}\n${output_text}\n${error_text}")
+endif()
+execute_process(
+    COMMAND "${READER}" --compare "${SOURCE}" "${output}"
+    RESULT_VARIABLE result
+    OUTPUT_VARIABLE output_text
+    ERROR_VARIABLE error_text
+)
+if(NOT result STREQUAL "0")
+    message(FATAL_ERROR "Sample public reader comparison failed: ${result}\n${output_text}\n${error_text}")
 endif()
 file(REMOVE_RECURSE "${output}")

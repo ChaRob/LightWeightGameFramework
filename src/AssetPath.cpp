@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <system_error>
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -13,6 +14,21 @@
 
 namespace
 {
+    bool IsPlainPath(const std::filesystem::path& _path, std::filesystem::file_type _type)
+    {
+        std::error_code error;
+        const auto status = std::filesystem::symlink_status(_path, error);
+        if (error || status.type() != _type)
+            return false;
+#ifdef _WIN32
+        const auto attributes = GetFileAttributesW(_path.c_str());
+        if (attributes == INVALID_FILE_ATTRIBUTES ||
+            (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+            return false;
+#endif
+        return true;
+    }
+
     char FoldAscii(char _value)
     {
         return _value >= 'A' && _value <= 'Z' ? static_cast<char>(_value + ('a' - 'A')) : _value;
@@ -92,6 +108,16 @@ namespace
 
 namespace lwgf::detail
 {
+    bool IsPlainAssetFile(const std::filesystem::path& _path)
+    {
+        return IsPlainPath(_path, std::filesystem::file_type::regular);
+    }
+
+    bool IsPlainAssetDirectory(const std::filesystem::path& _path)
+    {
+        return IsPlainPath(_path, std::filesystem::file_type::directory);
+    }
+
     bool IsValidAssetPath(std::string_view _path)
     {
         // Conservative V1 metadata bound; not an OS long-path guarantee.

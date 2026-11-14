@@ -105,6 +105,7 @@ add_library(
     src/SpriteAnimation.cpp
     src/Font.cpp
     src/AudioSystem.cpp
+    src/AssetReader.cpp
 )
 
 add_library(
@@ -153,6 +154,10 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
         add_executable(SplitAssetDataTests tests/SplitAssetDataTests.cpp)
         target_link_libraries(SplitAssetDataTests PRIVATE lwgf_asset_io)
         add_test(NAME SplitAssetDataTests COMMAND SplitAssetDataTests)
+        add_executable(AssetReaderTests tests/AssetReaderTests.cpp)
+        target_include_directories(AssetReaderTests PRIVATE src)
+        target_link_libraries(AssetReaderTests PRIVATE LWGF::Framework lwgf_asset_io)
+        add_test(NAME AssetReaderTests COMMAND AssetReaderTests)
         if(TARGET LWGFAssetPacker)
             add_executable(AssetPackerTests
                 tests/AssetPackerTests.cpp
@@ -165,6 +170,7 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                 COMMAND ${CMAKE_COMMAND}
                     "-DPACKER=$<TARGET_FILE:LWGFAssetPacker>"
                     "-DCOMPARE=$<TARGET_FILE:AssetPackerTests>"
+                    "-DREADER=$<TARGET_FILE:AssetReaderTests>"
                     "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/sample/assets"
                     "-DOUTPUT_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/AssetPackerSampleTests.cmake")

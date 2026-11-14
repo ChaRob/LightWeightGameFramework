@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <map>
 #include <string>
 #include <string_view>
@@ -8,6 +9,10 @@ namespace lwgf::detail
 {
     // Canonical logical path: UTF-8, relative, forward slashes, no OS aliases.
     bool IsValidAssetPath(std::string_view _path);
+
+    // Reject symlinks and Windows reparse points, including directory junctions.
+    bool IsPlainAssetFile(const std::filesystem::path& _path);
+    bool IsPlainAssetDirectory(const std::filesystem::path& _path);
 
     // Detect file/directory aliases and case conflicts. Exact spelling remains
     // the lookup key. Windows uses ordinal case-insensitive comparison;

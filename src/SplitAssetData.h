@@ -45,6 +45,9 @@ namespace lwgf::detail
                          std::uint64_t _totalSize, PackageId _id);
         // Header/size only. Does not read the payload.
         bool Validate();
+        // Internal only: source already validated all part headers. Each part
+        // is still checked when opened. Avoids a global scan per asset stream.
+        bool PrepareFromValidatedIndex();
         // Explicit full scan, intended for packaging/diagnostics.
         bool VerifyPayload(std::span<const std::uint32_t> _partCrcs);
         // Offset is relative to the complete logical data stream.

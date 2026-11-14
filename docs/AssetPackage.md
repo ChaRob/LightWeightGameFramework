@@ -1,6 +1,6 @@
 # LWGF Asset Package V1 — 작업 초안
 
-상태: 내부 V1 wire format, 무결성 및 CLI Packer 구현. 런타임 공개 API와 게임별 배포 연동은 아직 개발 중.
+상태: 내부 V1 wire format, 무결성, CLI Packer 및 AssetReader/AssetStream 공개 API 구현. 기존 리소스 로더와 게임별 배포 연동은 아직 개발 중.
 출시 포맷은 테스트 완료 전 변경될 수 있다.
 
 ## Product Goal
@@ -38,13 +38,12 @@ Part header와 CRC32를 추가하여 혼합 세대/잘못된 순번/크기 검�
 전체 payload 검증은 VerifyPayload()로 명시적으로 수행한다.
 빈 데이터에는 part를 만들지 않는다. Packer는 index-only 빈 패키지를 허용한다.
 임시 파일 정리 및 배포 세트 교체는 Packer가 담당한다.
-이 단계의 index는 내부 메타데이터이며 공개 런타임 API는 미확정이다.
+Index는 내부 메타데이터이며 게임은 AssetReader/AssetStream 공개 API를 사용한다.
 
 ## 미결정 Policy
 
-- 오류 반환/로그와 초기화 실패 후 기존 상태 보존 정책.
-- 런타임 에셋 루트 결정 및 실제 배포 디렉터리에 복사/설치하는 정책.
-- 기존 Load(path) 유지 범위와 논리 경로 API 및 명시적 소유권.
+- 실제 게임 시작 시 executable-relative root 선정 및 CMake 배포 디렉터리 복사/설치 정책.
+- 기존 Texture/Font/Audio Load(path)와 새 AssetReader 연동 API.
 
 ## 무결성 정책 (B안 확정)
 
@@ -100,7 +99,7 @@ CRC32 대상은 header를 제외한 payload만이다. part 개수는 ceil(total/
 Entry는 payload 기록 순서이며 연속 범위 전체를 중복 없이 덮어야 한다. 빈 entry는
 size=0으로 표현한다. index는 64 MiB로 임시 상한을 두어 비정상 파일의 메모리 사용을 제한한다.
 Codec은 Packer와 동일한 논리 경로 검증 및 경로 충돌 검사를 사용한다.
-현재 경로는 index 식별자이며 런타임 OS 파일 접근에는 아직 사용하지 않는다.
+경로는 Package 모드에서 정확한 index 식별자이며 Directory 모드에서도 같은 UTF-8 논리 경로를 사용한다.
 
 Index 읽기 실패 시 출력 metadata를 유지하고, 잘린 index, magic/version/flags,
 CRC, 비정상 count/length, 중복 경로, overflow/범위 오류, 남는 데이터를 거부한다.
@@ -133,7 +132,7 @@ CMake configure 자체는 기존 Framework 의존성을 계속 준비한다.
 
 ### V1 경로 및 출력 정책 (이번 구현의 기본값)
 
-- 에셋 루트 기준 UTF-8 상대 경로, 구분자 /, 정확한 대소문자로 lookup할 예정.
+- 에셋 루트 기준 UTF-8 상대 경로, 구분자 /, 정확한 대소문자로 lookup한다.
 - 절대 경로, 빈 component, . / .., backslash, NUL/control 문자, Windows 금지 문자,
   trailing dot/space, Windows 예약 장치명, 잘못된 UTF-8 거부.
 - 경로 길이 최대 4096 UTF-8 bytes(임시 V1 metadata 상한; OS long path 지원 보장 아님).
@@ -168,16 +167,96 @@ CMake configure 자체는 기존 Framework 의존성을 계속 준비한다.
 
 `AssetPackerSampleTests`: 실제 sample PNG/JPG/TTF/WAV 에셋을 CLI로 pack/verify,
 64 KiB 분할 파일 크기 검사 및 모든 실제 원본 파일과 package entry byte 단위 비교.
-SampleGame은 아직 원본 파일로 실행한다.
+SampleGame은 아직 원본 파일로 실행한다. CTest는 실제 Sample 패키지의 공개 AssetReader API 비교까지 수행한다.
+
+## 런타임 AssetReader / AssetStream
+
+Game이 하나의 AssetReader 객체를 소유하며 source를 명시적으로 선택한다.
+전역 Singleton, 자동 mode 탐색 또는 fallback은 사용하지 않는다.
+물리 root는 filesystem::path, 논리 asset path는 UTF-8 상대 경로이다.
+예: root가 sample/assets 또는 out/packed-assets이면 asset은 "images.jpg" 또는
+"fonts/AnonymousPro-Regular.ttf"로 지정한다. "assets/" prefix를 붙이지 않는다.
+
+~~~cpp
+#include <framework/AssetReader.h>
+#include <array>
+
+AssetReader assets;
+const bool packaged = true; // Game의 명시적 설정
+if (!(packaged ? assets.OpenPackage("out/packed-assets")
+              : assets.OpenDirectory("sample/assets")))
+{
+    return -1;
+}
+
+std::vector<std::byte> data;
+if (!assets.ReadAll("images.jpg", data))
+{
+    return -1;
+}
+
+// Stream은 개별 에셋의 독립적인 읽기 위치를 관리한다.
+auto music = assets.Open("audio/music.wav");
+if (!music)
+{
+    return -1;
+}
+std::array<std::byte, 4096> buffer{};
+std::size_t bytesRead = 0;
+if (!music->Read(buffer, bytesRead))
+{
+    return -1;
+}
+music->Seek(0);
+~~~
+
+위 코드는 파일 바이트 읽기 예시이며 Texture/Font/Audio 디코딩 연동은 다음 단계다.
+실제 Game은 root를 실행 파일 위치 또는 개발 설정에서 결정할 수 있다.
+상대 root는 OpenDirectory/OpenPackage 호출 시 절대 경로로 고정한다.
+
+### 동작 정책 및 소유권
+
+- Directory 모드: root 아래 요청한 경로의 각 component를 실제 이름과 정확히 비교한다.
+  요청 경로 내 symlink/Windows reparse point 및 특수 파일을 거부한다.
+  전체 폴더를 캐싱하지 않고 다음 Open에서 원본 변경/추가/삭제를 반영한다.
+  이미 열린 스트림 또는 읽기 도중 원본 변경은 지원하지 않는다.
+- Package 모드: index CRC/구조와 모든 part header/size를 최초 한 번 검증한다.
+  전체 payload CRC scan은 하지 않는다. stream을 열 때마다 전체 part를 재검사하지
+  않고, 실제로 읽는 part를 열 때 header 및 size를 다시 검사한다.
+  원본 디렉터리 또는 같은 폴더의 loose file로 fallback하지 않는다.
+- AssetReader의 source 설정 실패 시 기존 source를 유지한다.
+  Close()는 source 설정과 index metadata를 해제한다. 이미 열린 AssetStream은
+  독립적인 파일 핸들/metadata를 소유하므로 reader의 Close/reconfigure/destruction
+  이후에도 유지된다. 사용 중인 원본/패키지는 변경하거나 교체하지 않아야 한다.
+- Stream의 Seek는 asset 기준 절대 offset이며 EOF까지 허용한다.
+  Read는 요청 buffer 크기와 남은 asset 크기 중 작은 값만 읽는다.
+  EOF는 성공 및 0 bytes, I/O 실패는 false 및 0 bytes를 반환하고 cursor는 유지한다.
+  실패 시 buffer 일부가 변경되었을 수 있다.
+- ReadAll은 호출자의 vector에 전체 asset을 반환한다. 빈 asset은 성공/빈 vector.
+  실패 시 기존 vector는 유지한다. 큰 asset/BGM은 Open/Read로 스트리밍한다.
+- Reader 설정/변경 및 동일 stream 동시 호출은 동기화하지 않는다.
+  별개 stream에는 공유 file cursor가 없다. 오류는 로그와 실패 값으로 전달한다.
+  루트 상위 경로는 설정 시 canonicalize하며 동시 파일 시스템 변경에 대한 보안
+  sandbox/TOCTOU 방어는 제공하지 않는다.
+
+### 검증
+
+AssetReaderTests: 두 mode의 API, 한글 경로, 정확한 대소문자, 변경된 원본,
+빈 에셋/패키지, 부분 읽기, 경계 횡단, 독립 cursor, EOF와 범위 제한,
+source 재설정 실패 및 stream 수명, no fallback, 손상/누락 오류를 검증한다.
+AssetPackerSampleTests는 실제 sample 파일을 두 mode에서 ReadAll 및 분할 stream으로
+읽어 동일한 데이터를 얻는지 추가 비교한다.
 
 ## 다음 단계 / 완료 기준
 
 1. 분할 I/O 및 경계 테스트 (Windows CI Debug/Release 및 사용자 로컬 Debug 통과).
-2. 무결성 B안 및 내부 index codec (Windows CI Debug/Release, 사용자 로컬 테스트 통과).\n3. CLI Packer 및 경로/출력 정책 구현, CTest 추가 (이번 작업, 실행 검증 필요).
-4. Directory/Package 소스와 기존 Texture/Font 연동, Audio의 독립 스트리밍 연동.
-5. 외부 CMake 연동 및 에셋 변경/삭제 감지, 배포 결과물 검증.
-6. SampleGame 및 MazeRunner 실제 Windows 실행, 기존 CTest 회귀 검사.
-7. 동일 에셋/동일 실행 환경에서 RAM, 시작 시간, 프레임 시간, 배포 용량 비교.
+2. 무결성 B안 및 내부 index codec (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
+3. CLI Packer 및 경로/출력 정책 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
+4. AssetReader/AssetStream 공개 API, Directory/Package 소스 (이번 작업, 검증 필요).
+5. 기존 Texture/Font 연동, Audio의 독립 스트리밍 연동.
+6. 외부 CMake 연동 및 에셋 변경/삭제 감지, 배포 결과물 검증.
+7. SampleGame 및 MazeRunner 실제 Windows 실행, 기존 CTest 회귀 검사.
+8. 동일 에셋/동일 실행 환경에서 RAM, 시작 시간, 프레임 시간, 배포 용량 비교.
 
 MazeRunner HUD 폰트는 현재 LWGF sample에서 복사되므로 게임 assets 루트만
 패키징하면 누락된다. 원본 위치 통합과 OFL 라이선스 배포는 게임 연동 시 검토한다.

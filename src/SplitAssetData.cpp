@@ -1,4 +1,5 @@
 #include "SplitAssetData.h"
+#include "AssetPath.h"
 
 #include <algorithm>
 #include <limits>
@@ -130,8 +131,7 @@ namespace lwgf::detail
 
         const auto path = PartPath(m_base, _number);
         std::error_code error;
-        const auto status = std::filesystem::symlink_status(path, error);
-        if (error || !std::filesystem::is_regular_file(status))
+        if (!IsPlainAssetFile(path))
             return false;
         const auto size = std::filesystem::file_size(path, error);
         if (error || size != _expectedPayload + AssetPartHeaderSize)
@@ -152,15 +152,22 @@ namespace lwgf::detail
         return true;
     }
 
-    bool SplitAssetReader::Validate()
+    bool SplitAssetReader::PrepareFromValidatedIndex()
     {
         m_valid = false;
         m_openPart = 0;
         if (m_file.is_open())
             m_file.close();
         m_file.clear();
-        if (!IsValidPartLimit(m_partSize) || m_base.empty() || !IsValidPackageId(m_id))
+        m_valid = IsValidPartLimit(m_partSize) && !m_base.empty() && IsValidPackageId(m_id);
+        return m_valid;
+    }
+
+    bool SplitAssetReader::Validate()
+    {
+        if (!PrepareFromValidatedIndex())
             return false;
+        m_valid = false;
 
         const auto capacity = m_partSize - AssetPartHeaderSize;
         std::uint64_t remaining = m_totalSize;
