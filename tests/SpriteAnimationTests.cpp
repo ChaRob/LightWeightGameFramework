@@ -75,6 +75,20 @@ int main()
     CHECK(animation.GetFrameIndex() == 2);
     animation.Update(0.14);
     CHECK(animation.GetFrameIndex() == 0);
+    // Decimal boundaries must not display the previous frame due to rounding.
+    const double times[] = {0.21, 0.35, 0.42, 0.49, 0.7, 280.0, 280.07};
+    const std::size_t indices[] = {3, 1, 2, 3, 2, 0, 1};
+    for (std::size_t i = 0; i < sizeof(times) / sizeof(times[0]); ++i)
+    {
+        animation.Reset();
+        animation.Play();
+        animation.Update(times[i]);
+        CHECK(animation.GetFrameIndex() == indices[i]);
+    }
+    CHECK(animation.ConfigureStrip({0, 0, 16, 16}, 3, 0.07, AnimationMode::Once));
+    animation.Play();
+    animation.Update(0.21);
+    CHECK(animation.IsFinished() && animation.GetFrameIndex() == 2);
     CHECK(animation.ConfigureStrip({0, 0, 16, 16}, 1, 0.07));
     animation.Play();
     animation.Update(1e100);

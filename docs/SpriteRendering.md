@@ -76,7 +76,7 @@ action.Play();
 - Animation은 Texture를 참조하지 않으므로 실제 이미지 크기 검사는 DrawTextureRegion에서 한다. 빈 Animation의 GetCurrentFrame은 유효하지 않은 빈 Region을 반환한다.
 - Game이 Texture2D를 소유하며 렌더링 동안 살아 있어야 하고 OpenGL Context 종료 전에 해제해야 한다.
 - 복사된 Animation도 재생 상태가 독립적이다. 초기 구성 시에만 프레임 배열을 할당하며 Update/Render는 GPU 리소스를 만들거나 Texture를 다시 로드하지 않는다.
-- 큰 Delta Time은 Loop에서 나머지 연산으로 주기를 건너뛰고 최대 한 번의 프레임 배열 순회로 처리한다. 시간은 부동소수점으로 표현되므로 극단적으로 큰 값은 정밀도 한계가 있다.
+- 큰 Delta Time은 Loop에서 나머지 연산으로 주기를 건너뛰고 최대 한 번의 프레임 배열 순회로 처리한다. 0.07초 같은 십진수 시간의 경계 오차는 제한된 허용 오차로 보정한다. 극단적으로 큰 값은 부동소수점 정밀도 한계가 있다.
 
 ## Sample 및 검증
 

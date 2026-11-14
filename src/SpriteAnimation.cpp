@@ -1,5 +1,6 @@
 #include <framework/SpriteAnimation.h>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -10,6 +11,7 @@ bool SpriteAnimation::Configure(std::vector<SpriteFrame> _frames, AnimationMode 
         return false;
 
     double total = 0.0;
+    double minDuration = std::numeric_limits<double>::max();
     for (const SpriteFrame& frame : _frames)
     {
         if (!frame.region.IsValid() ||
@@ -21,11 +23,13 @@ bool SpriteAnimation::Configure(std::vector<SpriteFrame> _frames, AnimationMode 
         if (!std::isfinite(next) || next <= total)
             return false;
         total = next;
+        minDuration = std::min(minDuration, frame.duration);
     }
 
     m_frames = std::move(_frames);
     m_mode = _mode;
     m_totalDuration = total;
+    m_minFrameDuration = minDuration;
     Reset();
     return true;
 }
@@ -74,9 +78,14 @@ void SpriteAnimation::Update(double _deltaTime)
     if (!m_playing || m_frames.empty() || !std::isfinite(_deltaTime) || _deltaTime <= 0.0)
         return;
 
+    // Decimal durations and fmod can leave an exact intended boundary a few
+    // ULPs short. Bound the tolerance so even very large dt cannot skip a frame.
+    const double tolerance = std::min(m_minFrameDuration * 1e-7,
+        (4.0 * std::numeric_limits<double>::epsilon()) * std::max(_deltaTime, m_totalDuration));
+
     if (m_mode == AnimationMode::Once)
     {
-        if (_deltaTime >= m_totalDuration - m_elapsed)
+        if (m_totalDuration - m_elapsed - _deltaTime <= tolerance)
         {
             m_elapsed = m_totalDuration;
             m_frameIndex = m_frames.size() - 1;
@@ -92,7 +101,7 @@ void SpriteAnimation::Update(double _deltaTime)
         const double remaining = m_totalDuration - m_elapsed;
         m_elapsed = step >= remaining ? step - remaining : m_elapsed + step;
         // Addition can round up to the end of the cycle.
-        if (m_elapsed >= m_totalDuration)
+        if (m_totalDuration - m_elapsed <= tolerance)
             m_elapsed = 0.0;
     }
 
@@ -104,8 +113,13 @@ void SpriteAnimation::Update(double _deltaTime)
         end += m_frames[i].duration;
         if (m_elapsed < end)
         {
-            m_frameIndex = i;
-            break;
+            if (end - m_elapsed <= tolerance)
+                m_elapsed = end;
+            else
+            {
+                m_frameIndex = i;
+                break;
+            }
         }
     }
 }

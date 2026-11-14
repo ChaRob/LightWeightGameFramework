@@ -37,6 +37,7 @@ private:
     AnimationMode m_mode = AnimationMode::Loop;
     std::size_t m_frameIndex = 0;
     double m_totalDuration = 0.0;
+    double m_minFrameDuration = 0.0;
     double m_elapsed = 0.0;
     bool m_playing = false;
     bool m_finished = false;
