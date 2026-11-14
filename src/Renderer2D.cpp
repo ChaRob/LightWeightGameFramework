@@ -185,12 +185,22 @@ bool Renderer2D::Initialize(int screenWidth, int screenHeight)
         "out vec4 fragmentColor;\n"
         "uniform vec4 uColor;\n"
         "uniform sampler2D uTexture;\n"
+        "uniform vec2 uUVMin;\n"
+        "uniform vec2 uUVMax;\n"
         "uniform int uUseTexture;\n"
         "void main()\n"
         "{\n"
         "    if (uUseTexture == 1)\n"
         "    {\n"
         "        fragmentColor = texture(uTexture, vTexCoord) * uColor;\n"
+        "    }\n"
+        "    else if (uUseTexture == 3)\n"
+        "    {\n"
+        "        vec2 halfTexel = 0.5 / vec2(textureSize(uTexture, 0));\n"
+        "        vec2 center = (uUVMin + uUVMax) * 0.5;\n"
+        "        vec2 low = min(uUVMin + halfTexel, center);\n"
+        "        vec2 high = max(uUVMax - halfTexel, center);\n"
+        "        fragmentColor = texture(uTexture, clamp(vTexCoord, low, high)) * uColor;\n"
         "    }\n"
         "    else if (uUseTexture == 2)\n"
         "    {\n"
@@ -358,36 +368,59 @@ void Renderer2D::DrawTexture(
     float height
 )
 {
-    const float ndcX = (x / static_cast<float>(m_screenWidth)) * 2.0f - 1.0f;
-    const float ndcY = (y / static_cast<float>(m_screenHeight)) * 2.0f - 1.0f;
+    DrawTextureUV(texture, x, y, width, height, 0.0f, 0.0f, 1.0f, 1.0f, false);
+}
 
-    const float ndcWidth = (width / static_cast<float>(m_screenWidth)) * 2.0f;
-    const float ndcHeight = (height / static_cast<float>(m_screenHeight)) * 2.0f;
+bool Renderer2D::DrawTextureRegion(
+    const Texture2D& _texture, const TextureRegion& _source,
+    float _x, float _y, float _width, float _height
+)
+{
+    if (!_source.FitsWithin(_texture.GetWidth(), _texture.GetHeight()) ||
+        !std::isfinite(_x) || !std::isfinite(_y) ||
+        !std::isfinite(_width) || !std::isfinite(_height) ||
+        _width <= 0.0f || _height <= 0.0f ||
+        m_screenWidth <= 0 || m_screenHeight <= 0)
+    {
+        return false;
+    }
+
+    const float textureWidth = static_cast<float>(_texture.GetWidth());
+    const float textureHeight = static_cast<float>(_texture.GetHeight());
+
+    // stb flips rows on load; the source rectangle still uses top-left pixels.
+    const float u0 = static_cast<float>(_source.x) / textureWidth;
+    const float u1 = static_cast<float>(_source.x + _source.width) / textureWidth;
+    const float v0 = static_cast<float>(_texture.GetHeight() - _source.y - _source.height) / textureHeight;
+    const float v1 = static_cast<float>(_texture.GetHeight() - _source.y) / textureHeight;
+
+    DrawTextureUV(_texture, _x, _y, _width, _height, u0, v0, u1, v1, true);
+    return true;
+}
+
+void Renderer2D::DrawTextureUV(
+    const Texture2D& _texture, float _x, float _y, float _width, float _height,
+    float _u0, float _v0, float _u1, float _v1, bool _clampRegion
+)
+{
+    const float ndcX = (_x / static_cast<float>(m_screenWidth)) * 2.0f - 1.0f;
+    const float ndcY = (_y / static_cast<float>(m_screenHeight)) * 2.0f - 1.0f;
+    const float ndcWidth = (_width / static_cast<float>(m_screenWidth)) * 2.0f;
+    const float ndcHeight = (_height / static_cast<float>(m_screenHeight)) * 2.0f;
 
     glUseProgram(m_shaderProgram);
+    glUniform1i(m_useTextureLocation, _clampRegion ? 3 : 1);
+    glUniform2f(m_positionLocation, ndcX, ndcY);
+    glUniform2f(m_sizeLocation, ndcWidth, ndcHeight);
+    glUniform4f(m_colorLocation, 1.0f, 1.0f, 1.0f, 1.0f);
 
-    glUniform1i(
-        m_useTextureLocation,
-        1
-    );
+    // Every textured draw sets its own UVs. Rectangles ignore UVs.
+    glUniform2f(m_uvMinLocation, _u0, _v0);
+    glUniform2f(m_uvMaxLocation, _u1, _v1);
 
-    glUniform2f( m_positionLocation, ndcX, ndcY );
-    glUniform2f( m_sizeLocation, ndcWidth, ndcHeight );
-    glUniform4f( m_colorLocation, 1.0f, 1.0f, 1.0f, 1.0f );
-
-    glUniform2f(m_uvMinLocation, 0.0f, 0.0f);
-    glUniform2f(m_uvMaxLocation, 1.0f, 1.0f);
-
-    texture.Bind();
-
+    _texture.Bind();
     glBindVertexArray(m_vao);
-
-    glDrawElements(
-        GL_TRIANGLES,
-        6,
-        GL_UNSIGNED_INT,
-        nullptr
-    );
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 }
 
 void Renderer2D::DrawText(

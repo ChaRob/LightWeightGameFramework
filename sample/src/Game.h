@@ -4,6 +4,7 @@
 
 #include "framework/Texture2D.h"
 #include "framework/Font.h"
+#include <framework/SpriteAnimation.h>
 
 class Application;
 class Renderer2D;
@@ -32,6 +33,11 @@ private:
 	std::array<TextureObject, 2> m_textures;
 
     Font m_font;
+    Texture2D m_walkNearest;
+    Texture2D m_walkLinear;
+    Texture2D m_regionTest;
+    SpriteAnimation m_walk;
+    SpriteAnimation m_once;
     float m_elapsedSeconds = 0.0f;
 
     TextureObject* m_draggingTexture = nullptr;

@@ -1,8 +1,8 @@
-﻿cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.20)
 
 project(
     LightWeightGameFramework
-    VERSION 0.0.7
+    VERSION 0.0.8
     LANGUAGES C CXX)
 
 include(FetchContent)
@@ -38,6 +38,22 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(stb)
 
+# miniaudio 0.11.25: WAV/MP3/FLAC with no optional decoders/tools.
+set(MINIAUDIO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(MINIAUDIO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(MINIAUDIO_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(MINIAUDIO_NO_EXTRA_NODES ON CACHE BOOL "" FORCE)
+set(MINIAUDIO_NO_LIBVORBIS ON CACHE BOOL "" FORCE)
+set(MINIAUDIO_NO_LIBOPUS ON CACHE BOOL "" FORCE)
+set(MINIAUDIO_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    miniaudio
+    GIT_REPOSITORY https://github.com/mackron/miniaudio.git
+    GIT_TAG 0.11.25
+)
+FetchContent_MakeAvailable(miniaudio)
+
 
 # =========================
 # GLAD
@@ -65,7 +81,9 @@ add_library(
     src/Application.cpp
     src/Renderer2D.cpp
     src/Texture2D.cpp
+    src/SpriteAnimation.cpp
     src/Font.cpp
+    src/AudioSystem.cpp
 )
 
 add_library(
@@ -95,6 +113,7 @@ target_link_libraries(
     PRIVATE
         glfw
         lwgf_glad
+        miniaudio
 )
 
 
@@ -104,4 +123,16 @@ target_link_libraries(
 
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
     add_subdirectory(sample)
+endif()
+# Device-independent API tests (CI hosts do not require sound output).
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    include(CTest)
+    if(BUILD_TESTING)
+        add_executable(AudioSystemTests tests/AudioSystemTests.cpp)
+        target_link_libraries(AudioSystemTests PRIVATE LWGF::Framework)
+        add_test(NAME AudioSystemTests COMMAND AudioSystemTests)
+        add_executable(SpriteAnimationTests tests/SpriteAnimationTests.cpp)
+        target_link_libraries(SpriteAnimationTests PRIVATE LWGF::Framework)
+        add_test(NAME SpriteAnimationTests COMMAND SpriteAnimationTests)
+    endif()
 endif()

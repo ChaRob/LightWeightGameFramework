@@ -19,6 +19,17 @@ Texture2D::~Texture2D()
 
 bool Texture2D::Load(const char* _path)
 {
+    return Load(_path, TextureFilter::Linear);
+}
+
+bool Texture2D::Load(const char* _path, TextureFilter _filter)
+{
+    if (_filter != TextureFilter::Linear && _filter != TextureFilter::Nearest)
+    {
+        std::cerr << "Invalid texture filter.\n";
+        return false;
+    }
+
     int width = 0;
     int height = 0;
     int channels = 0;
@@ -75,8 +86,9 @@ bool Texture2D::Load(const char* _path)
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    const int filter = _filter == TextureFilter::Nearest ? GL_NEAREST : GL_LINEAR;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
 
     glTexImage2D(
         GL_TEXTURE_2D,
