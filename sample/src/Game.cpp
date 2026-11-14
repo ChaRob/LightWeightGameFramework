@@ -24,6 +24,17 @@ bool Game::Initialize()
         return false;
     }
 
+    if (!m_walkNearest.Load("assets/player_walk_down.png", TextureFilter::Nearest) ||
+        !m_walkLinear.Load("assets/player_walk_down.png") ||
+        !m_regionTest.Load("assets/region_test.png") ||
+        !m_walk.ConfigureStrip({0, 0, 16, 16}, 4, 0.07) ||
+        !m_once.ConfigureStrip({0, 0, 16, 16}, 4, 0.07, AnimationMode::Once))
+    {
+        return false;
+    }
+    m_walk.Play();
+    m_once.Play();
+
     m_textures[0].x = 200.0f;
     m_textures[0].y = 200.0f;
 
@@ -73,6 +84,13 @@ void Game::Update(Application& _app)
     const float moveSpeed = 300.0f;
     const float deltaTime = _app.GetDeltaTime();
     m_elapsedSeconds += deltaTime;
+    m_walk.Update(deltaTime);
+    if (_app.IsKeyPressed(Key::F))
+    {
+        m_once.Reset();
+        m_once.Play();
+    }
+    m_once.Update(deltaTime);
 
 	// Texture movement
     if (_app.IsKeyDown(Key::W))
@@ -136,6 +154,20 @@ void Game::Render(Renderer2D& _renderer)
         );
     }
 
+    // Sprite regression panel: same frame/filter comparison, independent Once
+    // playback on the same texture, and a deliberately asymmetric 2-row atlas.
+    const TextureRegion frame = m_walk.GetCurrentFrame();
+    _renderer.DrawTextureRegion(m_walkNearest, frame, 984.0f, 500.0f, 80.0f, 80.0f);
+    _renderer.DrawTextureRegion(m_walkLinear, frame, 1080.0f, 500.0f, 80.0f, 80.0f);
+    _renderer.DrawTextureRegion(m_walkNearest, m_once.GetCurrentFrame(), 1176.0f, 500.0f, 80.0f, 80.0f);
+
+    // Full image immediately after a region draw checks that UVs are not leaked.
+    _renderer.DrawTexture(m_walkNearest, 1000.0f, 650.0f, 256.0f, 64.0f);
+
+    _renderer.DrawTexture(m_regionTest, 984.0f, 330.0f, 64.0f, 64.0f);
+    _renderer.DrawTextureRegion(m_regionTest, {0, 0, 4, 4}, 1080.0f, 330.0f, 64.0f, 64.0f);
+    _renderer.DrawTextureRegion(m_regionTest, {4, 4, 4, 4}, 1176.0f, 330.0f, 64.0f, 64.0f);
+
     const Color color =
     {
         0.2f,
@@ -155,6 +187,14 @@ void Game::Render(Renderer2D& _renderer)
     // Text shares the same bottom-left-origin coordinate system.
     const Color textColor = { 1.0f, 1.0f, 1.0f, 1.0f };
     const Color accentColor = { 1.0f, 0.85f, 0.3f, 1.0f };
+
+    _renderer.DrawText(m_font, "SPRITE SHEET", 1000.0f, 625.0f, 16.0f, textColor);
+    _renderer.DrawText(m_font, "NEAREST", 984.0f, 590.0f, 16.0f, textColor);
+    _renderer.DrawText(m_font, "LINEAR", 1080.0f, 590.0f, 16.0f, textColor);
+    _renderer.DrawText(m_font, "ONCE (F)", 1176.0f, 590.0f, 16.0f, textColor);
+    _renderer.DrawText(m_font, "FULL", 984.0f, 405.0f, 16.0f, textColor);
+    _renderer.DrawText(m_font, "TOP LEFT", 1080.0f, 405.0f, 16.0f, textColor);
+    _renderer.DrawText(m_font, "BOT RIGHT", 1176.0f, 405.0f, 16.0f, textColor);
 
     _renderer.DrawText(m_font, "STAGE 12", 32.0f, 675.0f, 32.0f, textColor);
 

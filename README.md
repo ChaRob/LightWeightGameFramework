@@ -190,3 +190,7 @@ Audio 초기화 실패는 Game이 처리하며, 파일 로드 실패 시 다른 
 Sample: SPACE = 효과음, M = BGM, P = 일시정지, R = 재개, N = 정지.
 
 - [Audio V1 사용법 및 정책](docs/Audio.md)
+
+## Sprite Rendering & Animation V1
+
+- [Sprite Rendering & Animation 사용법 및 정책](docs/SpriteRendering.md): Texture filtering, pixel regions, Loop/Once playback, Sample 검증.
