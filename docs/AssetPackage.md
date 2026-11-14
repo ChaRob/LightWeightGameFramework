@@ -1,6 +1,6 @@
 # LWGF Asset Package V1 — 작업 초안
 
-상태: 내부 V1 wire format, 무결성, CLI Packer 및 AssetReader/AssetStream 공개 API 구현. Texture/Font/Audio 연동 구현. 게임별 CMake 배포 연동은 아직 개발 중.
+상태: 내부 V1 wire format, 무결성, CLI Packer 및 AssetReader/AssetStream 공개 API 구현. Texture/Font/Audio 및 게임별 CMake 자동 패키징 연동 구현. 실제 MazeRunner 연동 및 성능 검증은 남아 있다.
 출시 포맷은 테스트 완료 전 변경될 수 있다.
 
 ## Product Goal
@@ -40,9 +40,9 @@ Part header와 CRC32를 추가하여 혼합 세대/잘못된 순번/크기 검�
 임시 파일 정리 및 배포 세트 교체는 Packer가 담당한다.
 Index는 내부 메타데이터이며 게임은 AssetReader/AssetStream 공개 API를 사용한다.
 
-## 미결정 Policy
+## 남은 검증
 
-- 실제 게임 시작 시 executable-relative root 선정 및 CMake 배포 디렉터리 복사/설치 정책.
+- MazeRunner 실제 배포 구성(게임 전용 DLL/라이선스/저장 데이터 포함)과 성능 측정.
 
 ## 무결성 정책 (B안 확정)
 
@@ -366,6 +366,106 @@ no-device engine과 동일한 VFS/flags로 decoded effect/voice copy 및 streami
 초기화하고 실제 PCM mix, loop, stop/seek/restart 및 누락 track 오류를 검사한다.
 실제 스피커 출력 및 AudioSystem 전체 상호작용은 Windows SampleGame에서 확인한다.
 
+## CMake 자동 패키징 및 배포용 빌드
+
+게임 프로젝트는 LWGF를 add_subdirectory한 후 자기 실행 파일 target을 설정한다.
+Framework root는 자동으로 CMake helper를 포함한다. CMake 함수 호출 예:
+
+~~~cmake
+add_subdirectory(external/LightWeightGameFramework)
+add_executable(MazeRunner src/main.cpp)
+target_link_libraries(MazeRunner PRIVATE LWGF::Framework)
+
+set(GAME_ASSET_MODE "DIRECTORY" CACHE STRING "DIRECTORY or PACKAGE")
+set(GAME_ASSET_PART_SIZE "536870912" CACHE STRING "Physical part size in bytes")
+
+lwgf_configure_assets(
+    TARGET MazeRunner
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+    MODE "${GAME_ASSET_MODE}"
+    PART_SIZE_BYTES "${GAME_ASSET_PART_SIZE}"
+)
+~~~
+
+SOURCE_DIR은 게임이 지정하며 상대 경로는 호출 CMakeLists.txt 위치 기준이다.
+PART_SIZE_BYTES는 생략 시 512 MiB(536870912), header 포함 최대 물리 part 크기.
+MODE는 Debug/Release와 독립적인 DIRECTORY 또는 PACKAGE(대문자)이다.
+helper는 target을 정의한 CMake 디렉터리에서 target마다 한 번 호출한다.
+동일 런타임 디렉터리에 여러 게임의 assets를 패키징하지 않는다.
+
+helper는 게임 target에 전용 `<lwgf/AssetBuildConfig.h>`를 생성한다.
+Game은 시작 시 다음처럼 AssetReader를 설정한다. exeDirectory는 Windows의
+실행 파일 위치이며 SampleGame은 GetModuleFileNameW를 사용한다.
+
+~~~cpp
+#include <lwgf/AssetBuildConfig.h>
+#include <framework/AssetReader.h>
+
+AssetReader assets;
+const bool opened = lwgf::build::UsePackage
+    ? assets.OpenPackage(exeDirectory / lwgf::build::PackageDirectory)
+    : assets.OpenDirectory(std::filesystem::path(lwgf::build::DirectoryRoot));
+if (!opened)
+    return -1;
+~~~
+
+- DIRECTORY: 원본 에셋 디렉터리의 절대 경로를 target 전용 header에 UTF-8로
+  기록한다. 복사, 패키징, 에셋 수정에 따른 재빌드 없이 다음 실행에 원본 변경 반영.
+  개발 빌드로서 원본 폴더가 있는 PC에서만 실행할 수 있다.
+- PACKAGE: 원본 경로를 실행 파일에 설정값으로 포함하지 않는다.
+  게임 target에 `<target>_assets` custom target을 의존성으로 연결하고
+  게임 exe 옆의 전용 assets/ 디렉터리에 Packer를 실행한다.
+  에셋만 수정/추가/삭제하거나 C++ 변경이 없어도 빌드 시 실행한다.
+  검증 실패는 빌드 실패로 전파되며 이전 패키지는 기존 Packer 정책에 따라 보호된다.
+  이전 실행 파일이 빌드 폴더에 남아 있을 수 있으므로 실패한 빌드 결과를 배포하지 않는다.
+- V1은 PACKAGE 빌드마다 전체 재패키징 및 검증을 수행한다. 변경 없는 빌드의
+  증분 최적화는 실제 큰 게임에서 비용을 측정한 후 필요 시 도입한다.
+- Package 출력은 exe 옆 assets/ 전용 디렉터리로 한정한다. 기존 raw asset 또는
+  관련 없는 파일이 섞인 디렉터리는 Packer가 교체를 거부하며 자동 삭제하지 않는다.
+  기존 POST_BUILD 원본 복사와 함께 사용하지 말고 깨끗한 별도 PACKAGE build tree를 사용한다.
+  Framework는 게임의 다른 임의 출력 폴더, DLL, 세이브, 라이선스, installer를 관리하지 않는다.
+  Packer 실행 파일과 CMake build tree 전체는 배포 대상이 아니다.
+
+### SampleGame 빌드 구성
+
+Visual Studio CMake preset:
+
+| Preset | Build type | Asset mode |
+| --- | --- | --- |
+| x64-debug | Debug | DIRECTORY |
+| x64-release | Release | DIRECTORY |
+| x64-debug-package | Debug | PACKAGE |
+| x64-release-package | Release | PACKAGE |
+
+기존 두 preset은 원본 디렉터리 직접 사용, 새 두 preset은 별도 build tree에서
+자동 패키징. SampleGame의 CMake 설정은 LWGF_SAMPLE_ASSET_MODE 및
+LWGF_SAMPLE_ASSET_PART_SIZE로 변경할 수 있다.
+
+~~~powershell
+cmake --preset x64-debug-package -DLWGF_SAMPLE_ASSET_PART_SIZE=65536
+cmake --build out/build/x64-debug-package --target SampleGame
+.\out\build\x64-debug-package\sample\SampleGame.exe
+~~~
+
+Package 출력 구조(64 KiB 예):
+
+~~~text
+out/build/x64-debug-package/sample/
+    SampleGame.exe
+    assets/
+        assets.pak
+        assets.1
+        assets.2
+        ...
+~~~
+
+기존 수동 --directory / --package 실행 인자는 테스트를 위해 유지한다.
+이전 build tree에 남은 loose assets는 삭제하지 않으며 새 Package preset과 분리된다.
+자동화 검증은 AssetBuildTests(외부 fixture, 실제 packer, 추가/수정/삭제, 빌드 실패,
+원본 보호, 별도 mode) 및 Windows CI의 실제 packaged SampleGame 빌드를 사용한다.
+Fixture는 add_subdirectory를 통한 helper 가시성과 호출 방식 검증을 위해 host packer를
+import한다. 실제 LWGF submodule/게임 통합은 MazeRunner 단계에서 검증한다.
+
 ## 다음 단계 / 완료 기준
 
 1. 분할 I/O 및 경계 테스트 (Windows CI Debug/Release 및 사용자 로컬 Debug 통과).
@@ -373,8 +473,8 @@ no-device engine과 동일한 VFS/flags로 decoded effect/voice copy 및 streami
 3. CLI Packer 및 경로/출력 정책 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
 4. AssetReader/AssetStream 공개 API, Directory/Package 소스 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
 5. Texture/Font 연동 및 SampleGame 모드 선택 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
-6. Audio의 독립 스트리밍 연동 (이번 작업, 검증 필요).
-7. 외부 CMake 연동 및 에셋 변경/삭제 감지, 배포 결과물 검증.
+6. Audio의 독립 스트리밍 연동 (Windows CI Debug/Release, 사용자 로컬 테스트 및 실제 소리 확인).
+7. 외부 CMake 연동 및 에셋 변경/삭제 반영 (이번 작업, 검증 필요).
 8. SampleGame 및 MazeRunner 실제 Windows 실행, 기존 CTest 회귀 검사.
 9. 동일 에셋/동일 실행 환경에서 RAM, 시작 시간, 프레임 시간, 배포 용량 비교.
 

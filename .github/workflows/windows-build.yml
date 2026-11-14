@@ -22,3 +22,15 @@ jobs:
         run: cmake --build build --parallel 2
       - name: API tests
         run: ctest --test-dir build --output-on-failure -C ${{ matrix.config }}
+      - name: Configure packaged SampleGame
+        run: cmake -S . -B build -DLWGF_SAMPLE_ASSET_MODE=PACKAGE -DLWGF_SAMPLE_ASSET_PART_SIZE=65536
+      - name: Build packaged SampleGame
+        run: cmake --build build --target SampleGame --parallel 2
+      - name: Verify packaged SampleGame assets
+        shell: pwsh
+        run: |
+          & ./build/LWGFAssetPacker.exe verify ./build/sample/assets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./build/AssetPackerTests.exe --compare ./sample/assets ./build/sample/assets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Test-Path ./build/sample/assets/images.jpg) { throw "Loose assets in packaged build" }

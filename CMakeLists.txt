@@ -141,6 +141,8 @@ target_link_libraries(
 )
 
 
+include(cmake/LWGFAssets.cmake)
+
 # =========================
 # Sample Game
 # =========================
@@ -186,6 +188,21 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
             target_include_directories(AssetPackerTests PRIVATE tools)
             target_link_libraries(AssetPackerTests PRIVATE lwgf_asset_io)
             add_test(NAME AssetPackerTests COMMAND AssetPackerTests)
+            add_test(NAME AssetBuildTests
+                COMMAND ${CMAKE_COMMAND}
+                    "-DPACKER=$<TARGET_FILE:LWGFAssetPacker>"
+                    "-DCOMPARE=$<TARGET_FILE:AssetPackerTests>"
+                    "-DMODULE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/LWGFAssets.cmake"
+                    "-DFIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/tests/asset-build-fixture"
+                    "-DOUTPUT_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+                    "-DGENERATOR=${CMAKE_GENERATOR}"
+                    "-DPLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+                    "-DTOOLSET=${CMAKE_GENERATOR_TOOLSET}"
+                    "-DCOMPILER=${CMAKE_CXX_COMPILER}"
+                    "-DMAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+                    "-DCONFIG=$<CONFIG>"
+                    "-DEXE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/AssetBuildTests.cmake")
             add_test(NAME AssetPackerSampleTests
                 COMMAND ${CMAKE_COMMAND}
                     "-DPACKER=$<TARGET_FILE:LWGFAssetPacker>"

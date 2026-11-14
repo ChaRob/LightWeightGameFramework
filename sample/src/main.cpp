@@ -18,6 +18,7 @@
 #include <framework/AudioSystem.h>
 #include <framework/Key.h>
 #include <framework/Renderer2D.h>
+#include <lwgf/AssetBuildConfig.h>
 
 namespace
 {
@@ -55,10 +56,15 @@ namespace
 template<typename Char>
 int RunSample(int _argc, Char** _argv)
 {
-    bool packaged = false;
+    bool packaged = lwgf::build::UsePackage;
     fs::path root;
     if (_argc == 1)
-        root = ExecutableDirectory(fs::path(_argv[0])) / "assets";
+    {
+        if (packaged)
+            root = ExecutableDirectory(fs::path(_argv[0])) / lwgf::build::PackageDirectory;
+        else
+            root = fs::path(lwgf::build::DirectoryRoot);
+    }
     else if (_argc == 3 &&
              (fs::path(_argv[1]) == "--directory" || fs::path(_argv[1]) == "--package"))
     {
