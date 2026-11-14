@@ -2,6 +2,8 @@
 
 class Renderer2D;
 
+enum class TextureFilter { Linear, Nearest };
+
 class Texture2D
 {
 public:
@@ -11,7 +13,8 @@ public:
     Texture2D(const Texture2D&) = delete;
     Texture2D& operator=(const Texture2D&) = delete;
 
-    bool Load(const char* path);
+    bool Load(const char* _path);
+    bool Load(const char* _path, TextureFilter _filter);
 
     int GetWidth() const;
     int GetHeight() const;
