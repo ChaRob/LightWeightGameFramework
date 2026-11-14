@@ -15,12 +15,6 @@ namespace
         return path;
     }
 
-    bool ValidPartSize(std::uint64_t _size)
-    {
-        return _size != 0 &&
-            _size <= static_cast<std::uint64_t>(std::numeric_limits<std::streamoff>::max());
-    }
-
     std::size_t ChunkSize(std::size_t _remaining, std::uint64_t _available)
     {
         const auto limit = static_cast<std::uint64_t>(
@@ -32,9 +26,10 @@ namespace
 
 namespace lwgf::detail
 {
-    SplitAssetWriter::SplitAssetWriter(std::filesystem::path _base, std::uint64_t _partSize)
-        : m_base(std::move(_base)), m_partSize(_partSize),
-          m_failed(!ValidPartSize(_partSize) || m_base.empty())
+    SplitAssetWriter::SplitAssetWriter(std::filesystem::path _base, std::uint64_t _partSize,
+                                       PackageId _id)
+        : m_base(std::move(_base)), m_partSize(_partSize), m_id(_id),
+          m_failed(!IsValidPartLimit(_partSize) || m_base.empty() || !IsValidPackageId(_id))
     {
     }
 
@@ -43,7 +38,11 @@ namespace lwgf::detail
         if (!m_file.is_open())
             return true;
         m_file.close();
-        return !m_file.fail();
+        if (m_file.fail())
+            return false;
+        if (!m_failed)
+            m_partCrcs.push_back(m_crc.Get());
+        return true;
     }
 
     bool SplitAssetWriter::OpenPart(std::uint64_t _number)
@@ -59,7 +58,14 @@ namespace lwgf::detail
         if (status.type() != std::filesystem::file_type::not_found)
             return false;
         m_file.open(path, std::ios::binary | std::ios::out);
-        return m_file.is_open() && !m_file.fail();
+        if (!m_file)
+            return false;
+
+        const auto header = MakePartHeader(m_id, _number);
+        m_file.write(reinterpret_cast<const char*>(header.data()),
+                     static_cast<std::streamsize>(header.size()));
+        m_crc = Crc32{};
+        return !m_file.fail();
     }
 
     bool SplitAssetWriter::Write(std::span<const std::byte> _bytes)
@@ -72,16 +78,17 @@ namespace lwgf::detail
             return false;
         }
 
+        const auto capacity = m_partSize - AssetPartHeaderSize;
         while (!_bytes.empty())
         {
-            const auto local = m_size % m_partSize;
-            if (local == 0 && !OpenPart(m_size / m_partSize + 1))
+            const auto local = m_size % capacity;
+            if (local == 0 && !OpenPart(m_size / capacity + 1))
             {
                 m_failed = true;
                 return false;
             }
 
-            const auto count = ChunkSize(_bytes.size(), m_partSize - local);
+            const auto count = ChunkSize(_bytes.size(), capacity - local);
             m_file.write(reinterpret_cast<const char*>(_bytes.data()),
                          static_cast<std::streamsize>(count));
             if (!m_file)
@@ -89,6 +96,7 @@ namespace lwgf::detail
                 m_failed = true;
                 return false;
             }
+            m_crc.Update(_bytes.first(count));
             m_size += count;
             _bytes = _bytes.subspan(count);
         }
@@ -107,9 +115,41 @@ namespace lwgf::detail
     }
 
     SplitAssetReader::SplitAssetReader(std::filesystem::path _base, std::uint64_t _partSize,
-                                       std::uint64_t _totalSize)
-        : m_base(std::move(_base)), m_partSize(_partSize), m_totalSize(_totalSize)
+                                       std::uint64_t _totalSize, PackageId _id)
+        : m_base(std::move(_base)), m_partSize(_partSize), m_totalSize(_totalSize), m_id(_id)
     {
+    }
+
+    bool SplitAssetReader::OpenVerifiedPart(std::uint64_t _number,
+                                           std::uint64_t _expectedPayload,
+                                           std::ifstream& _file) const
+    {
+        if (_file.is_open())
+            _file.close();
+        _file.clear();
+
+        const auto path = PartPath(m_base, _number);
+        std::error_code error;
+        const auto status = std::filesystem::symlink_status(path, error);
+        if (error || !std::filesystem::is_regular_file(status))
+            return false;
+        const auto size = std::filesystem::file_size(path, error);
+        if (error || size != _expectedPayload + AssetPartHeaderSize)
+            return false;
+
+        _file.open(path, std::ios::binary);
+        if (!_file)
+            return false;
+
+        std::array<std::byte, AssetPartHeaderSize> header{};
+        if (!_file.read(reinterpret_cast<char*>(header.data()),
+                        static_cast<std::streamsize>(header.size())) ||
+            header != MakePartHeader(m_id, _number))
+        {
+            _file.close();
+            return false;
+        }
+        return true;
     }
 
     bool SplitAssetReader::Validate()
@@ -119,22 +159,17 @@ namespace lwgf::detail
         if (m_file.is_open())
             m_file.close();
         m_file.clear();
-        if (!ValidPartSize(m_partSize) || m_base.empty())
+        if (!IsValidPartLimit(m_partSize) || m_base.empty() || !IsValidPackageId(m_id))
             return false;
 
-        // Iterate by remaining bytes to avoid overflow in ceil(total / part).
+        const auto capacity = m_partSize - AssetPartHeaderSize;
         std::uint64_t remaining = m_totalSize;
         std::uint64_t number = 1;
+        std::ifstream file;
         while (remaining != 0)
         {
-            const auto expected = std::min(remaining, m_partSize);
-            const auto path = PartPath(m_base, number);
-            std::error_code error;
-            const auto status = std::filesystem::symlink_status(path, error);
-            if (error || !std::filesystem::is_regular_file(status))
-                return false;
-            const auto size = std::filesystem::file_size(path, error);
-            if (error || size != expected)
+            const auto expected = std::min(remaining, capacity);
+            if (!OpenVerifiedPart(number, expected, file))
                 return false;
             remaining -= expected;
             if (remaining != 0)
@@ -144,34 +179,60 @@ namespace lwgf::detail
         return true;
     }
 
+    bool SplitAssetReader::VerifyPayload(std::span<const std::uint32_t> _partCrcs)
+    {
+        if (!IsValidPartLimit(m_partSize) ||
+            _partCrcs.size() != PartCount(m_totalSize, m_partSize) || !Validate())
+            return false;
+
+        const auto capacity = m_partSize - AssetPartHeaderSize;
+        std::array<std::byte, 64 * 1024> buffer{};
+        std::uint64_t offset = 0;
+        for (const auto expectedCrc : _partCrcs)
+        {
+            Crc32 crc;
+            auto remaining = std::min(capacity, m_totalSize - offset);
+            while (remaining != 0)
+            {
+                const auto count = ChunkSize(buffer.size(), remaining);
+                auto chunk = std::span(buffer).first(count);
+                if (!ReadAt(offset, chunk))
+                    return false;
+                crc.Update(chunk);
+                offset += count;
+                remaining -= count;
+            }
+            if (crc.Get() != expectedCrc)
+                return false;
+        }
+        return true;
+    }
+
     bool SplitAssetReader::ReadAt(std::uint64_t _offset, std::span<std::byte> _bytes)
     {
         if (!m_valid || _offset > m_totalSize ||
             _bytes.size() > m_totalSize - _offset)
             return false;
 
+        const auto capacity = m_partSize - AssetPartHeaderSize;
         while (!_bytes.empty())
         {
-            const auto number = _offset / m_partSize + 1;
-            const auto local = _offset % m_partSize;
+            const auto number = _offset / capacity + 1;
+            const auto local = _offset % capacity;
             if (number != m_openPart || !m_file.is_open())
             {
                 m_openPart = 0;
-                if (m_file.is_open())
-                    m_file.close();
-                m_file.clear();
-                m_file.open(PartPath(m_base, number), std::ios::binary);
-                if (!m_file)
+                const auto partStart = _offset - local;
+                if (!OpenVerifiedPart(number, std::min(capacity, m_totalSize - partStart), m_file))
                     return false;
                 m_openPart = number;
             }
             m_file.clear();
-            m_file.seekg(static_cast<std::streamoff>(local), std::ios::beg);
-            const auto count = ChunkSize(_bytes.size(), m_partSize - local);
+            m_file.seekg(static_cast<std::streamoff>(local + AssetPartHeaderSize), std::ios::beg);
+            const auto count = ChunkSize(_bytes.size(), capacity - local);
             if (!m_file || !m_file.read(reinterpret_cast<char*>(_bytes.data()),
                                          static_cast<std::streamsize>(count)))
             {
-                // Reopen on a later retry rather than retaining a failed handle.
                 m_file.close();
                 m_openPart = 0;
                 return false;

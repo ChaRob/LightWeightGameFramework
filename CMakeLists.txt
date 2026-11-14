@@ -85,6 +85,7 @@ add_library(
     src/Font.cpp
     src/AudioSystem.cpp
     src/SplitAssetData.cpp
+    src/AssetPackageIndex.cpp
 )
 
 add_library(
