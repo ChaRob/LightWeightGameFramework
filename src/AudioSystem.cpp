@@ -1,4 +1,8 @@
 #include <framework/AudioSystem.h>
+#include <framework/AssetReader.h>
+
+#include "AudioAssetVfs.h"
+#include "AssetPath.h"
 
 #include <algorithm>
 #include <cmath>
@@ -12,11 +16,7 @@
 
 namespace
 {
-    constexpr ma_uint32 kEffectFlags =
-        MA_SOUND_FLAG_DECODE | MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH;
-
-    constexpr ma_uint32 kMusicFlags =
-        MA_SOUND_FLAG_STREAM | MA_SOUND_FLAG_NO_SPATIALIZATION | MA_SOUND_FLAG_NO_PITCH;
+    using namespace lwgf::detail;
 
     void LogAudioError(const char* _operation, const char* _path, ma_result _result)
     {
@@ -62,8 +62,8 @@ struct AudioSystem::Impl
         EffectId source = InvalidEffect;
     };
 
-    explicit Impl(std::size_t _capacity)
-        : voices(std::make_unique<Voice[]>(_capacity)),
+    explicit Impl(std::size_t _capacity, const AssetReader* _assets)
+        : vfs(_assets), voices(std::make_unique<Voice[]>(_capacity)),
           capacity(_capacity)
     {
     }
@@ -83,6 +83,7 @@ struct AudioSystem::Impl
         }
     }
 
+    AudioAssetVfs vfs;
     ma_engine engine{};
     bool engineInitialized = false;
 
@@ -106,6 +107,21 @@ AudioSystem::~AudioSystem()
 
 bool AudioSystem::Initialize(std::size_t _maxConcurrentEffects)
 {
+    return InitializeInternal(nullptr, _maxConcurrentEffects);
+}
+
+bool AudioSystem::Initialize(const AssetReader& _assets, std::size_t _maxConcurrentEffects)
+{
+    if (!_assets.IsOpen())
+    {
+        std::cerr << "[Audio] AssetReader must be configured before initialization.\n";
+        return false;
+    }
+    return InitializeInternal(&_assets, _maxConcurrentEffects);
+}
+
+bool AudioSystem::InitializeInternal(const AssetReader* _assets, std::size_t _maxConcurrentEffects)
+{
     if (m_impl != nullptr)
     {
         std::cerr << "[Audio] Already initialized.\n";
@@ -118,8 +134,11 @@ bool AudioSystem::Initialize(std::size_t _maxConcurrentEffects)
         return false;
     }
 
-    auto impl = std::make_unique<Impl>(_maxConcurrentEffects);
-    const ma_result result = ma_engine_init(nullptr, &impl->engine);
+    auto impl = std::make_unique<Impl>(_maxConcurrentEffects, _assets);
+    auto config = ma_engine_config_init();
+    if (_assets)
+        config.pResourceManagerVFS = impl->vfs.Get();
+    const ma_result result = ma_engine_init(&config, &impl->engine);
     if (result != MA_SUCCESS)
     {
         LogAudioError("Initialize", nullptr, result);
@@ -150,6 +169,12 @@ AudioSystem::EffectId AudioSystem::LoadEffect(const char* _path)
         return InvalidEffect;
     }
 
+    if (m_impl->vfs.assets && !IsValidAssetPath(_path))
+    {
+        std::cerr << "[Audio] Invalid logical effect path: " << _path << '\n';
+        return InvalidEffect;
+    }
+
     if (m_impl->nextEffectId == InvalidEffect)
     {
         std::cerr << "[Audio] Effect ID space exhausted.\n";
@@ -158,7 +183,7 @@ AudioSystem::EffectId AudioSystem::LoadEffect(const char* _path)
 
     auto effect = std::make_unique<OwnedSound>();
     const ma_result result = ma_sound_init_from_file(
-        &m_impl->engine, _path, kEffectFlags, nullptr, nullptr, &effect->sound);
+        &m_impl->engine, _path, AudioEffectFlags, nullptr, nullptr, &effect->sound);
 
     if (result != MA_SUCCESS)
     {
@@ -233,7 +258,7 @@ AudioSystem::PlayResult AudioSystem::PlayEffect(EffectId _effect)
     }
 
     const ma_result initResult = ma_sound_init_copy(
-        &m_impl->engine, &it->second->sound, kEffectFlags, nullptr, &freeVoice->instance.sound);
+        &m_impl->engine, &it->second->sound, AudioEffectFlags, nullptr, &freeVoice->instance.sound);
 
     if (initResult != MA_SUCCESS)
     {
@@ -316,6 +341,12 @@ bool AudioSystem::PlayMusic(const char* _path, bool _loop)
         return false;
     }
 
+    if (m_impl->vfs.assets && !IsValidAssetPath(_path))
+    {
+        std::cerr << "[Audio] Invalid logical music path: " << _path << '\n';
+        return false;
+    }
+
     if (m_impl->music != nullptr && m_impl->musicPath == _path)
     {
         // Same-track requests do not cancel a pause or restart an active track.
@@ -342,7 +373,7 @@ bool AudioSystem::PlayMusic(const char* _path, bool _loop)
     }
 
     auto nextMusic = std::make_unique<OwnedSound>();
-    const ma_uint32 flags = kMusicFlags | (_loop ? MA_SOUND_FLAG_LOOPING : 0);
+    const ma_uint32 flags = AudioMusicFlags | (_loop ? MA_SOUND_FLAG_LOOPING : 0);
     const ma_result loadResult = ma_sound_init_from_file(
         &m_impl->engine, _path, flags, nullptr, nullptr, &nextMusic->sound);
 
