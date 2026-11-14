@@ -81,6 +81,7 @@ add_library(
     src/Application.cpp
     src/Renderer2D.cpp
     src/Texture2D.cpp
+    src/SpriteAnimation.cpp
     src/Font.cpp
     src/AudioSystem.cpp
 )
@@ -130,5 +131,8 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
         add_executable(AudioSystemTests tests/AudioSystemTests.cpp)
         target_link_libraries(AudioSystemTests PRIVATE LWGF::Framework)
         add_test(NAME AudioSystemTests COMMAND AudioSystemTests)
+        add_executable(SpriteAnimationTests tests/SpriteAnimationTests.cpp)
+        target_link_libraries(SpriteAnimationTests PRIVATE LWGF::Framework)
+        add_test(NAME SpriteAnimationTests COMMAND SpriteAnimationTests)
     endif()
 endif()

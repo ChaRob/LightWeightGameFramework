@@ -1,5 +1,7 @@
 #pragma once
 
+#include <framework/TextureRegion.h>
+
 #include <string_view>
 
 struct Color
@@ -42,6 +44,14 @@ public:
         float height
     );
 
+    // Source: top-left image pixels; destination: bottom-left screen pixels.
+    // Returns false and draws nothing when the source/destination is invalid.
+    bool DrawTextureRegion(
+        const Texture2D& _texture,
+        const TextureRegion& _source,
+        float _x, float _y, float _width, float _height
+    );
+
     // (_x, _baselineY) is the left-hand baseline, in bottom-left-origin pixels.
     void DrawText(
         const Font& _font,
@@ -60,6 +70,11 @@ public:
     ) const;
 
 private:
+    void DrawTextureUV(
+        const Texture2D& _texture, float _x, float _y, float _width, float _height,
+        float _u0, float _v0, float _u1, float _v1, bool _clampRegion
+    );
+
     int m_screenWidth = 0;
     int m_screenHeight = 0;
 
