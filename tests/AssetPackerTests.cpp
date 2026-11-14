@@ -66,6 +66,12 @@ namespace
         SplitAssetReader reader(_package / "assets", _index.partSize, _index.totalSize, _index.id);
         if (!reader.Validate())
             return false;
+        std::size_t sourceCount = 0;
+        for (const auto& item : fs::recursive_directory_iterator(_source))
+            if (item.is_regular_file())
+                ++sourceCount;
+        if (sourceCount != _index.entries.size())
+            return false;
         for (const auto& entry : _index.entries)
         {
             const auto path = _source / fs::path(std::u8string(entry.path.begin(), entry.path.end()));
@@ -96,7 +102,7 @@ namespace
     }
 }
 
-int main()
+int RunTests()
 {
     CHECK(IsValidAssetPath("sprites/player.png"));
     CHECK(IsValidAssetPath("\xed\x95\x9c\xea\xb8\x80/font.ttf"));
@@ -221,4 +227,24 @@ int main()
     for (const auto& item : fs::directory_iterator(temp.path))
         CHECK(!item.path().filename().string().starts_with(".lwgf-packer-"));
     return 0;
+}
+
+#ifdef _WIN32
+int wmain(int _argc, wchar_t** _argv)
+#else
+int main(int _argc, char** _argv)
+#endif
+{
+    if (_argc == 1)
+        return RunTests();
+    if (_argc == 4 && fs::path(_argv[1]) == "--compare")
+    {
+        const fs::path source(_argv[2]);
+        const fs::path package(_argv[3]);
+        AssetPackageIndex index;
+        CHECK(ReadAssetIndex(package / "assets.pak", index));
+        CHECK(CheckOriginals(source, package, index));
+        return 0;
+    }
+    return 1;
 }

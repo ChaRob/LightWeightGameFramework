@@ -164,6 +164,7 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
             add_test(NAME AssetPackerSampleTests
                 COMMAND ${CMAKE_COMMAND}
                     "-DPACKER=$<TARGET_FILE:LWGFAssetPacker>"
+                    "-DCOMPARE=$<TARGET_FILE:AssetPackerTests>"
                     "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/sample/assets"
                     "-DOUTPUT_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/AssetPackerSampleTests.cmake")

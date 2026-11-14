@@ -167,7 +167,8 @@ CMake configure 자체는 기존 Framework 의존성을 계속 준비한다.
 경로 검증 및 staging 정리.
 
 `AssetPackerSampleTests`: 실제 sample PNG/JPG/TTF/WAV 에셋을 CLI로 pack/verify,
-64 KiB 분할 파일 크기 검사. SampleGame은 아직 원본 파일로 실행한다.
+64 KiB 분할 파일 크기 검사 및 모든 실제 원본 파일과 package entry byte 단위 비교.
+SampleGame은 아직 원본 파일로 실행한다.
 
 ## 다음 단계 / 완료 기준
 
