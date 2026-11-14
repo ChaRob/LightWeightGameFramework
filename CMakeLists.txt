@@ -71,6 +71,27 @@ target_include_directories(
 
 
 # =========================
+# Asset package I/O and host-side tool
+# =========================
+
+add_library(lwgf_asset_io STATIC
+    src/SplitAssetData.cpp
+    src/AssetPackageIndex.cpp
+    src/AssetPath.cpp
+)
+target_compile_features(lwgf_asset_io PUBLIC cxx_std_20)
+target_include_directories(lwgf_asset_io PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+option(LWGF_BUILD_ASSET_PACKER "Build the LWGF host asset packaging tool" ON)
+if(LWGF_BUILD_ASSET_PACKER AND NOT CMAKE_CROSSCOMPILING)
+    add_executable(LWGFAssetPacker
+        tools/AssetPackerMain.cpp
+        tools/AssetPacker.cpp
+    )
+    target_link_libraries(LWGFAssetPacker PRIVATE lwgf_asset_io)
+endif()
+
+# =========================
 # LightWeightGameFramework
 # =========================
 
@@ -84,8 +105,6 @@ add_library(
     src/SpriteAnimation.cpp
     src/Font.cpp
     src/AudioSystem.cpp
-    src/SplitAssetData.cpp
-    src/AssetPackageIndex.cpp
 )
 
 add_library(
@@ -116,6 +135,7 @@ target_link_libraries(
         glfw
         lwgf_glad
         miniaudio
+        lwgf_asset_io
 )
 
 
@@ -131,9 +151,23 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
     include(CTest)
     if(BUILD_TESTING)
         add_executable(SplitAssetDataTests tests/SplitAssetDataTests.cpp)
-        target_include_directories(SplitAssetDataTests PRIVATE src)
-        target_link_libraries(SplitAssetDataTests PRIVATE LWGF::Framework)
+        target_link_libraries(SplitAssetDataTests PRIVATE lwgf_asset_io)
         add_test(NAME SplitAssetDataTests COMMAND SplitAssetDataTests)
+        if(TARGET LWGFAssetPacker)
+            add_executable(AssetPackerTests
+                tests/AssetPackerTests.cpp
+                tools/AssetPacker.cpp
+            )
+            target_include_directories(AssetPackerTests PRIVATE tools)
+            target_link_libraries(AssetPackerTests PRIVATE lwgf_asset_io)
+            add_test(NAME AssetPackerTests COMMAND AssetPackerTests)
+            add_test(NAME AssetPackerSampleTests
+                COMMAND ${CMAKE_COMMAND}
+                    "-DPACKER=$<TARGET_FILE:LWGFAssetPacker>"
+                    "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/sample/assets"
+                    "-DOUTPUT_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/AssetPackerSampleTests.cmake")
+        endif()
         add_executable(AudioSystemTests tests/AudioSystemTests.cpp)
         target_link_libraries(AudioSystemTests PRIVATE LWGF::Framework)
         add_test(NAME AudioSystemTests COMMAND AudioSystemTests)

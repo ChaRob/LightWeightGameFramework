@@ -1,11 +1,11 @@
 #include "AssetPackageIndex.h"
+#include "AssetPath.h"
 
 #include <algorithm>
 #include <fstream>
 #include <limits>
 #include <string_view>
 #include <system_error>
-#include <unordered_set>
 #include <utility>
 
 namespace
@@ -38,15 +38,6 @@ namespace
         return true;
     }
 
-    // Minimum metadata invariants only; filesystem normalization and Windows
-    // case-collision policy belong to the Packer/asset path layer.
-    bool ValidEntry(const AssetIndexEntry& _entry)
-    {
-        return !_entry.path.empty() &&
-            _entry.path.size() <= std::numeric_limits<std::uint32_t>::max() &&
-            _entry.path.find('\0') == std::string::npos;
-    }
-
     bool ValidateIndex(const AssetPackageIndex& _index, std::size_t& _encodedSize)
     {
         if (!IsValidPackageId(_index.id) || !IsValidPartLimit(_index.partSize) ||
@@ -61,12 +52,12 @@ namespace
             return false;
 
         std::uint64_t offset = 0;
-        std::unordered_set<std::string_view> paths;
+        AssetPathRegistry paths;
         for (const auto& entry : _index.entries)
         {
-            if (!ValidEntry(entry) || entry.offset != offset ||
+            if (entry.offset != offset ||
                 entry.size > _index.totalSize - offset ||
-                !paths.insert(entry.path).second ||
+                !paths.AddFile(entry.path) ||
                 MaxAssetIndexSize - size < EntryFixedSize ||
                 entry.path.size() > MaxAssetIndexSize - size - EntryFixedSize)
                 return false;
