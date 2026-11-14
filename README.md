@@ -194,3 +194,7 @@ Sample: SPACE = 효과음, M = BGM, P = 일시정지, R = 재개, N = 정지.
 ## Sprite Rendering & Animation V1
 
 - [Sprite Rendering & Animation 사용법 및 정책](docs/SpriteRendering.md): Texture filtering, pixel regions, Loop/Once playback, Sample 검증.
+
+## Asset Package V1
+
+- [Asset Package V1 사용법 및 정책](docs/AssetPackage.md): Directory/Package 모드, AssetReader, Packer CLI, CMake 자동 패키징 및 배포 검증.

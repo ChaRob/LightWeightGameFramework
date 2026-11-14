@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <memory>
 
+class AssetReader;
+
 // Game-owned audio service. Does not depend on GLFW, OpenGL or game pause state.
 // Create one instance, initialize it, and call Update() once per game frame.
 class AudioSystem
@@ -29,10 +31,16 @@ public:
 
     // The default voice limit is provisional; tune it after profiling the game.
     bool Initialize(std::size_t _maxConcurrentEffects = 16);
+    // Logical asset paths for LoadEffect/PlayMusic. The reader is borrowed:
+    // keep it alive, open and unchanged until Shutdown() (including worker jobs).
+    // There is no fallback to the physical filesystem.
+    bool Initialize(const AssetReader& _assets, std::size_t _maxConcurrentEffects = 16);
+    bool Initialize(AssetReader&&, std::size_t = 16) = delete;
     void Shutdown();
     bool IsInitialized() const;
 
     // Load short sound effects into decoded memory. InvalidEffect means failure.
+    // Paths are physical for Initialize(), logical UTF-8 for Initialize(assets).
     EffectId LoadEffect(const char* _path);
     bool UnloadEffect(EffectId _effect);
     PlayResult PlayEffect(EffectId _effect);
@@ -42,7 +50,7 @@ public:
     void Update();
     std::size_t GetActiveEffectCount() const;
 
-    // Music streams from file. A failed switch leaves the current music intact.
+    // Music streams from the configured source. A failed switch leaves current music intact.
     // Requesting the same track while playing/paused preserves its state.
     bool PlayMusic(const char* _path, bool _loop = true);
     bool PauseMusic();
@@ -55,6 +63,7 @@ public:
     void SetMusicVolume(float _volume);
 
 private:
+    bool InitializeInternal(const AssetReader* _assets, std::size_t _maxConcurrentEffects);
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 

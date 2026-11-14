@@ -1,8 +1,12 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
+#include <span>
+#include <string_view>
 
 class Renderer2D;
+class AssetReader;
 
 // Owns a rasterized, single-channel glyph atlas. Requires a live GL context.
 class Font
@@ -18,11 +22,17 @@ public:
     // Retains the previous font on failure.
     bool Load(const char* _path, float _pixelHeight = 48.0f);
 
+    bool Load(const AssetReader& _assets, std::string_view _path,
+              float _pixelHeight = 48.0f);
+
     float GetPixelHeight() const;
     bool IsLoaded() const;
 
 private:
     friend class Renderer2D;
+
+    bool LoadData(std::span<const std::byte> _data, float _pixelHeight,
+                  std::string_view _path);
 
     struct Glyph
     {
