@@ -1,0 +1,47 @@
+name: Publish LWGF v0.0.9
+
+on:
+  push:
+    branches:
+      - release/v0.0.9-publish
+    paths:
+      - .github/workflows/publish-v0.0.9.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_SHA: 6e1184bb0b397d0d3b8d8561b4eb1042438f6a36
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 6e1184bb0b397d0d3b8d8561b4eb1042438f6a36
+          persist-credentials: false
+      - name: Confirm release source and CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          grep -q 'VERSION 0.0.9' CMakeLists.txt
+          gh run watch 43593906874 --exit-status --repo "$GH_REPO" --interval 5
+      - name: Publish exact main commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if existing=$(gh api "repos/$GH_REPO/git/ref/tags/v0.0.9" --jq .object.sha 2>/dev/null); then
+            test "$existing" = "$RELEASE_SHA"
+          fi
+          if ! gh release view v0.0.9 --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release create v0.0.9 --repo "$GH_REPO" --target "$RELEASE_SHA" \
+              --title "LWGF v0.0.9 — Asset Package V1" \
+              --notes-file docs/releases/v0.0.9.md --latest
+          fi
+          test "$(gh api "repos/$GH_REPO/git/ref/tags/v0.0.9" --jq .object.sha)" = "$RELEASE_SHA"
+          gh release view v0.0.9 --repo "$GH_REPO" --json url,tagName,isDraft,isPrerelease
