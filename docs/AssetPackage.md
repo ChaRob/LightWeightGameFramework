@@ -1,7 +1,7 @@
-# LWGF Asset Package V1 — 작업 초안
+# LWGF Asset Package V1 — v0.0.9
 
 상태: 내부 V1 wire format, 무결성, CLI Packer 및 AssetReader/AssetStream 공개 API 구현. Texture/Font/Audio 및 게임별 CMake 자동 패키징 연동 구현. 실제 MazeRunner 연동 및 성능 검증은 남아 있다.
-출시 포맷은 테스트 완료 전 변경될 수 있다.
+v0.0.9의 V1 wire format을 아래에 기록한다. 이후 변경은 포맷 버전 및 호환성 정책에 따라 검토한다.
 
 ## Product Goal
 
@@ -49,7 +49,7 @@ Index는 내부 메타데이터이며 게임은 AssetReader/AssetStream 공개 A
 - 초기화: index 전체의 CRC32 및 구조 검증, 모든 part의 파일 크기, magic, version,
   generation ID, part 번호 확인. payload는 읽지 않는다.
 - 명시적 전체 검사: 각 part payload의 IEEE CRC32를 64 KiB 버퍼로 순차 계산하고
-  index에 기록된 값과 비교한다. 이 기능은 추후 Packer verify 명령에 연결한다.
+  index에 기록된 값과 비교한다. 이 기능은 Packer pack 및 verify 명령에서 사용한다.
 - 일반 로딩에서 CRC 전체 스캔을 보장하지 않는다. 동일 크기 payload 손상은
   초기화에서 발견되지 않을 수 있다. CRC32는 암호화/인증/변조 방어 수단이 아니다.
 - 패키지는 사용 중 변경되지 않는다고 가정한다. Reader는 파일을 다시 열 때도
@@ -480,8 +480,8 @@ CTest 호출 셸이 x86 환경이거나 SDK 검색 경로가 다른 경우에도
 4. AssetReader/AssetStream 공개 API, Directory/Package 소스 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
 5. Texture/Font 연동 및 SampleGame 모드 선택 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
 6. Audio의 독립 스트리밍 연동 (Windows CI Debug/Release, 사용자 로컬 테스트 및 실제 소리 확인).
-7. 외부 CMake 연동 및 에셋 변경/삭제 반영 (이번 작업, 검증 필요).
-8. SampleGame 및 MazeRunner 실제 Windows 실행, 기존 CTest 회귀 검사.
+7. 외부 CMake 연동 및 에셋 변경/삭제 반영 (Windows CI Debug/Release, 사용자 로컬 CTest 9개 통과).
+8. SampleGame 실제 Windows 실행 및 그래픽·오디오 확인 완료. MazeRunner 실제 적용은 후속 작업.
 9. 동일 에셋/동일 실행 환경에서 RAM, 시작 시간, 프레임 시간, 배포 용량 비교.
 
 MazeRunner HUD 폰트는 현재 LWGF sample에서 복사되므로 게임 assets 루트만
