@@ -1,4 +1,8 @@
 # Build a separate minimal external game with the real reusable CMake module.
+# Only this test process and its children receive the parent configure environment.
+if(DEFINED MSVC_ENV_FILE AND NOT MSVC_ENV_FILE STREQUAL "")
+    include("${MSVC_ENV_FILE}")
+endif()
 foreach(required PACKER COMPARE MODULE FIXTURE OUTPUT_ROOT GENERATOR COMPILER CONFIG EXE_SUFFIX)
     if(NOT DEFINED ${required})
         message(FATAL_ERROR "Missing AssetBuildTests argument: ${required}")
