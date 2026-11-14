@@ -203,6 +203,27 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
                     "-DCONFIG=$<CONFIG>"
                     "-DEXE_SUFFIX=${CMAKE_EXECUTABLE_SUFFIX}"
                     -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/AssetBuildTests.cmake")
+
+            # The external fixture configures and links a fresh executable.
+            # Ninja with MSVC needs the same developer environment as the
+            # parent configure, not the environment of the CTest caller.
+            # In particular, an x86 LIB/INCLUDE with an x64 cl.exe fails
+            # during CMake's compiler check before any asset test runs.
+            if(MSVC AND CMAKE_GENERATOR MATCHES "Ninja")
+                set(asset_build_test_env "")
+                foreach(name IN ITEMS PATH INCLUDE LIB LIBPATH
+                        VCToolsInstallDir VCToolsVersion VCINSTALLDIR VSINSTALLDIR
+                        WindowsSdkDir WindowsSDKVersion UniversalCRTSdkDir UCRTVersion
+                        VSCMD_ARG_HOST_ARCH VSCMD_ARG_TGT_ARCH)
+                    # ENVIRONMENT is a CMake list, but MSVC search paths
+                    # themselves contain semicolons.
+                    string(REPLACE ";" "\\;" value "$ENV{${name}}")
+                    list(APPEND asset_build_test_env "${name}=${value}")
+                endforeach()
+                set_tests_properties(AssetBuildTests PROPERTIES
+                    ENVIRONMENT "${asset_build_test_env}")
+                unset(asset_build_test_env)
+            endif()
             add_test(NAME AssetPackerSampleTests
                 COMMAND ${CMAKE_COMMAND}
                     "-DPACKER=$<TARGET_FILE:LWGFAssetPacker>"

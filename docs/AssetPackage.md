@@ -465,6 +465,12 @@ out/build/x64-debug-package/sample/
 원본 보호, 별도 mode) 및 Windows CI의 실제 packaged SampleGame 빌드를 사용한다.
 Fixture는 add_subdirectory를 통한 helper 가시성과 호출 방식 검증을 위해 host packer를
 import한다. 실제 LWGF submodule/게임 통합은 MazeRunner 단계에서 검증한다.
+MSVC/Ninja에서는 별도 fixture를 configure/build하므로, 상위 CMake configure 때의
+PATH/INCLUDE/LIB/LIBPATH 및 관련 SDK 환경을 AssetBuildTests에 한해 복원한다.
+CTest 호출 셸이 x86 환경이거나 SDK 검색 경로가 다른 경우에도 상위 configure가
+정상적인 x64 개발 환경이었다면 fixture는 같은 환경에서 빌드된다.
+상위 configure 자체는 Visual Studio의 x64 preset 또는 x64 Native Tools 환경에서
+수행해야 한다. 기존 configure 환경이 잘못되었다면 해당 환경에서 다시 configure한다.
 
 ## 다음 단계 / 완료 기준
 
