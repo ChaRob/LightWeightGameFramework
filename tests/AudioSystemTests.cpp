@@ -1,4 +1,5 @@
 #include <framework/AudioSystem.h>
+#include <framework/AssetReader.h>
 
 // Explicit checks remain active in Release/NDEBUG builds.
 #define CHECK(_condition) do { if (!(_condition)) return __LINE__; } while (false)
@@ -7,6 +8,8 @@ int main()
 {
     // Device-independent API tests: CI may not provide speakers.
     AudioSystem audio;
+    AssetReader assets;
+    CHECK(!audio.Initialize(assets));
     CHECK(!audio.IsInitialized());
     CHECK(!audio.Initialize(0));
     CHECK(!audio.IsInitialized());

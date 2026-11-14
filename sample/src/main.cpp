@@ -92,24 +92,17 @@ int RunSample(int _argc, Char** _argv)
     // Audio failure is not fatal for this sample.
     AudioSystem audio;
     AudioSystem::EffectId clickEffect = AudioSystem::InvalidEffect;
-    const auto clickPath = Utf8(root / "audio" / "click.wav");
-    const auto musicPath = Utf8(root / "audio" / "music.wav");
-    if (packaged)
+    if (audio.Initialize(assets))
     {
-        std::cout << "[Sample] Package audio disabled until AudioSystem integration.\n";
-    }
-    else if (audio.Initialize())
-    {
-        clickEffect = audio.LoadEffect(clickPath.c_str());
+        clickEffect = audio.LoadEffect("audio/click.wav");
     }
     else
     {
         std::cerr << "[Sample] Audio unavailable; continuing without sound.\n";
     }
 
-    if (!packaged)
-        std::cout << "[Sample] Audio keys: SPACE=effect, M=play/loop music, "
-                     "P=pause, R=resume, N=stop.\n";
+    std::cout << "[Sample] Audio keys: SPACE=effect, M=play/loop music, "
+                 "P=pause, R=resume, N=stop.\n";
 
     Game game;
     if (!game.Initialize(assets))
@@ -132,9 +125,9 @@ int RunSample(int _argc, Char** _argv)
             }
         }
 
-        if (!packaged && app.IsKeyPressed(Key::M))
+        if (app.IsKeyPressed(Key::M))
         {
-            audio.PlayMusic(musicPath.c_str());
+            audio.PlayMusic("audio/music.wav");
         }
         if (app.IsKeyPressed(Key::P))
         {

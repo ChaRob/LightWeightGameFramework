@@ -1,6 +1,6 @@
 # LWGF Asset Package V1 — 작업 초안
 
-상태: 내부 V1 wire format, 무결성, CLI Packer 및 AssetReader/AssetStream 공개 API 구현. Texture/Font 연동 구현. Audio 및 게임별 배포 연동은 아직 개발 중.
+상태: 내부 V1 wire format, 무결성, CLI Packer 및 AssetReader/AssetStream 공개 API 구현. Texture/Font/Audio 연동 구현. 게임별 CMake 배포 연동은 아직 개발 중.
 출시 포맷은 테스트 완료 전 변경될 수 있다.
 
 ## Product Goal
@@ -43,7 +43,6 @@ Index는 내부 메타데이터이며 게임은 AssetReader/AssetStream 공개 A
 ## 미결정 Policy
 
 - 실제 게임 시작 시 executable-relative root 선정 및 CMake 배포 디렉터리 복사/설치 정책.
-- 기존 Audio LoadEffect/PlayMusic(path)와 새 AssetReader 연동 API.
 
 ## 무결성 정책 (B안 확정)
 
@@ -210,7 +209,7 @@ if (!music->Read(buffer, bytesRead))
 music->Seek(0);
 ~~~
 
-위 코드는 파일 바이트 읽기 예시다. Texture/Font는 아래 공개 Load overload를 사용하고 Audio 연동은 다음 단계다.
+위 코드는 파일 바이트 읽기 예시다. Texture/Font는 아래 공개 Load overload를 사용하고 Audio는 초기화 시 AssetReader를 지정한다.
 실제 Game은 root를 실행 파일 위치 또는 개발 설정에서 결정할 수 있다.
 상대 root는 OpenDirectory/OpenPackage 호출 시 절대 경로로 고정한다.
 
@@ -303,8 +302,7 @@ cmake --build out/build/x64-debug
 명시적인 상대 root는 실행 당시 CWD 기준으로 절대 경로를 고정한다.
 `--directory .\sample\assets`는 원본 폴더를 직접 읽으므로 이미지/폰트 교체를
 다음 실행에서 바로 확인할 수 있다. 현재 CMake의 POST_BUILD 복사 정책은 변경하지 않았다.
-Package 모드에서는 이번 단계에서 Texture/Font만 활성화하고 오디오는 명시적으로
-비활성화한다. 원본 오디오 fallback은 하지 않는다. Directory 모드는 기존 오디오 유지.
+두 모드에서 Texture/Font/Audio가 같은 AssetReader를 사용한다. 원본 오디오 fallback은 하지 않는다.
 
 `GraphicsAssetTests`는 GPU가 없는 CI에서 실제 Sample JPG/PNG/TTF를
 legacy file / Directory / Package 세 경로로 로딩하고, OpenGL 업로드 호출을
@@ -312,14 +310,70 @@ test double로 대체하여 RGBA 이미지와 glyph atlas byte/크기/filter 및
 기존 texture 보존을 비교한다. 실제 GPU 렌더링, 애니메이션/폰트 시각 결과는
 Windows SampleGame을 실행하여 확인한다.
 
+## AudioSystem 연동
+
+기존 `Initialize(maxConcurrentEffects)`와 물리 경로 `LoadEffect/PlayMusic` 호출은
+그대로 유지한다. 새 `Initialize(assets, maxConcurrentEffects)` overload로
+게임이 이미 구성한 AssetReader를 지정한다. 이후 해당 AudioSystem에서의 모든
+LoadEffect/PlayMusic 경로는 논리 UTF-8 상대 경로이며 혼용/fallback은 지원하지 않는다.
+
+~~~cpp
+AssetReader assets;
+if (!assets.OpenPackage("out/packed-assets"))
+    return -1;
+
+AudioSystem audio;
+if (!audio.Initialize(assets))
+    return -1;
+
+const auto click = audio.LoadEffect("audio/click.wav");
+if (click == AudioSystem::InvalidEffect)
+    return -1;
+
+audio.PlayEffect(click);
+audio.PlayMusic("audio/music.wav", true);
+
+// 각 frame에 audio.Update();
+// audio는 assets보다 먼저 Shutdown 또는 소멸해야 한다.
+~~~
+
+### 기술 및 정책
+
+- miniaudio의 engine 내부 resource manager에 custom read-only VFS를 설정한다.
+  기존 miniaudio backend와 decoded effect/stream music flags를 유지한다.
+- VFS는 파일을 열 때 독립 AssetStream을 생성한다. Read/Seek/Tell/Info/Close
+  callback으로 miniaudio가 해당 asset 범위만 읽는다. seek는 start/current/end를
+  지원하며 signed offset overflow 및 범위 초과를 거부한다.
+- 효과음은 기존과 같이 decoded PCM을 보관하고 voice는 ma_sound_init_copy로 재사용한다.
+  BGM은 기존 MA_SOUND_FLAG_STREAM 기반 resource-manager worker streaming을 유지한다.
+  전체 인코딩 데이터를 ReadAll 하거나 원본 파일을 추출하지 않는다.
+- AudioSystem은 AssetReader를 빌려 사용한다(소유권 없음). worker가 파일을 열 수
+  있으므로 reader의 lifetime과 source 설정은 Shutdown 완료까지 유지해야 한다.
+  Source 변경은 AudioSystem Shutdown 후 reader 재설정, AudioSystem 재초기화 순서로 한다.
+  AssetStream별 file cursor는 독립적이며 동일 stream 동시 호출은 지원하지 않는다.
+- 미설정 reader, 잘못된 논리 경로, 누락 asset 및 VFS I/O 오류는 실패 반환.
+  기존 effect voice limit 및 음악 재생/일시정지/재개/정지/같은 곡/교체 실패 정책 유지.
+  실행 중 에셋 변경은 지원하지 않으며 이미 decoded/cache된 효과음 변경은 unload/reload 필요.
+- SampleGame 두 mode에서 동일 audio API 사용: SPACE 효과음, M BGM 반복,
+  P 일시정지, R 재개, N 정지. 장치 초기화 실패 시 기존처럼 무음으로 실행한다.
+
+### 테스트
+
+`AudioAssetTests`는 실제 Sample WAV를 64 KiB part로 패키징하고 Directory/Package에서
+VFS의 독립 cursor, EOF 및 signed seek, 쓰기/잘못된 경로 거부를 검증한다.
+실제 miniaudio decoder로 두 mode의 PCM을 전부 비교하고 중간 seek도 검사한다.
+no-device engine과 동일한 VFS/flags로 decoded effect/voice copy 및 streaming music을
+초기화하고 실제 PCM mix, loop, stop/seek/restart 및 누락 track 오류를 검사한다.
+실제 스피커 출력 및 AudioSystem 전체 상호작용은 Windows SampleGame에서 확인한다.
+
 ## 다음 단계 / 완료 기준
 
 1. 분할 I/O 및 경계 테스트 (Windows CI Debug/Release 및 사용자 로컬 Debug 통과).
 2. 무결성 B안 및 내부 index codec (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
 3. CLI Packer 및 경로/출력 정책 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
 4. AssetReader/AssetStream 공개 API, Directory/Package 소스 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
-5. Texture/Font 연동 및 SampleGame 모드 선택 (이번 작업, 검증 필요).
-6. Audio의 독립 스트리밍 연동.
+5. Texture/Font 연동 및 SampleGame 모드 선택 (Windows CI Debug/Release, 사용자 로컬 테스트 통과).
+6. Audio의 독립 스트리밍 연동 (이번 작업, 검증 필요).
 7. 외부 CMake 연동 및 에셋 변경/삭제 감지, 배포 결과물 검증.
 8. SampleGame 및 MazeRunner 실제 Windows 실행, 기존 CTest 회귀 검사.
 9. 동일 에셋/동일 실행 환경에서 RAM, 시작 시간, 프레임 시간, 배포 용량 비교.
