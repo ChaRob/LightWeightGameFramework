@@ -84,6 +84,7 @@ add_library(
     src/SpriteAnimation.cpp
     src/Font.cpp
     src/AudioSystem.cpp
+    src/SplitAssetData.cpp
 )
 
 add_library(
@@ -128,6 +129,10 @@ endif()
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
     include(CTest)
     if(BUILD_TESTING)
+        add_executable(SplitAssetDataTests tests/SplitAssetDataTests.cpp)
+        target_include_directories(SplitAssetDataTests PRIVATE src)
+        target_link_libraries(SplitAssetDataTests PRIVATE LWGF::Framework)
+        add_test(NAME SplitAssetDataTests COMMAND SplitAssetDataTests)
         add_executable(AudioSystemTests tests/AudioSystemTests.cpp)
         target_link_libraries(AudioSystemTests PRIVATE LWGF::Framework)
         add_test(NAME AudioSystemTests COMMAND AudioSystemTests)
